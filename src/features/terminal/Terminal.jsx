@@ -1,17 +1,17 @@
 import React, { memo, useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { loadState, saveStateSection } from "../../utils/storage";
-import { executeTerminalCommand, isStellarCommand } from "./terminalCommands";
-import { collectProjectFiles, submitBuild, connectBuildStream } from "../../services/backendService";
+import { executeTerminalCommand, isBackendCommand } from "./terminalCommands";
+import { collectProjectFiles, submitCommand, connectBuildStream } from "../../services/backendService";
 
 const MIN_HEIGHT = 28;
 const COLLAPSE_THRESHOLD = 60;
-const DEFAULT_HEIGHT = 220;
+const DEFAULT_HEIGHT = 350;
 const MAX_HEIGHT = 600;
 
 /**
  * Terminal panel with simulated shell + backend integration.
  */
-const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeData, fileContents }) => {
+const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeData, fileContents, onFileTreeUpdate }) => {
   const persistedState = useMemo(() => loadState()?.terminal, []);
 
   const [height, setHeight] = useState(() => persistedState?.height || DEFAULT_HEIGHT);
@@ -37,6 +37,7 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
   const windowEndRef = useRef(null);
   const previousHeight = useRef(DEFAULT_HEIGHT);
   const wsCleanupRef = useRef(null);
+  const lastSessionIdRef = useRef(null);
 
   // Save state without maximized
   useEffect(() => {
@@ -79,11 +80,9 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
 
   /* ─── Backend command execution ─── */
 
-  const executeStellarCommand = useCallback(
+  const executeBackendCommand = useCallback(
     async (cmd) => {
       setIsRunning(true);
-
-      setHistory((prev) => [...prev, { type: "output", content: "🚀 Sending to build server..." }]);
 
       try {
         // Collect all project files from the workspace tree
@@ -95,14 +94,32 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
           return;
         }
 
-        // Submit to backend
-        const sessionId = await submitBuild(files);
-
-        setHistory((prev) => [...prev, { type: "output", content: `📡 Build session: ${sessionId}` }]);
+        // Submit to backend with the exact command the user typed
+        const sessionId = await submitCommand(files, cmd);
 
         // Connect WebSocket for streaming output
         wsCleanupRef.current = connectBuildStream(sessionId, {
           onMessage: (msg) => {
+            console.log("[Terminal] WebSocket message received:", msg);
+
+            // Handle file tree updates from backend
+            if (msg.type === "fileTreeUpdate") {
+              console.log("[Terminal] Processing fileTreeUpdate:", msg.content);
+              try {
+                const nodes = JSON.parse(msg.content);
+                console.log("[Terminal] Parsed fileTreeUpdate nodes:", nodes);
+                onFileTreeUpdate?.(nodes, sessionId);
+              } catch (e) {
+                console.error("[Terminal] Failed to parse fileTreeUpdate:", e);
+              }
+              return;
+            }
+
+            // Filter out decorative backend messages
+            const decorativePatterns = [/Executing:/i, /Command completed successfully/i, /Connected to build server/i, /Session:/i, /Sending to build server/i];
+            const isDecorative = decorativePatterns.some((pattern) => pattern.test(msg.content));
+            if (isDecorative) return;
+
             const className = msg.type === "error" ? "error" : msg.type === "info" ? "info" : "output";
             setHistory((prev) => [...prev, { type: className, content: msg.content }]);
           },
@@ -121,7 +138,7 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
         setIsRunning(false);
       }
     },
-    [treeData, fileContents],
+    [treeData, fileContents, onFileTreeUpdate],
   );
 
   /* ─── Command execution ─── */
@@ -136,9 +153,9 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
       setCommandHistory((prev) => [...prev, trimmedCmd]);
       setHistoryIndex(-1);
 
-      // Route: stellar commands → backend, everything else → local
-      if (isStellarCommand(trimmedCmd)) {
-        executeStellarCommand(trimmedCmd);
+      // Route: stellar/cargo commands → backend, everything else → local
+      if (isBackendCommand(trimmedCmd)) {
+        executeBackendCommand(trimmedCmd);
       } else {
         const output = executeTerminalCommand(trimmedCmd, cwd, setCwd, treeData);
 
@@ -149,7 +166,7 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
         }
       }
     },
-    [cwd, getShortPath, isRunning, executeStellarCommand, treeData],
+    [cwd, getShortPath, isRunning, executeBackendCommand, treeData],
   );
 
   /* ─── Resize handlers ─── */
@@ -245,7 +262,7 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
         }
       } else if (e.key === "Tab") {
         e.preventDefault();
-        const commands = ["clear", "pwd", "cd", "ls", "echo", "whoami", "date", "stellar", "help"];
+        const commands = ["clear", "pwd", "cd", "ls", "echo", "whoami", "date", "stellar", "soroban", "cargo", "rustc", "rustup", "node", "npm", "npx", "help"];
         const matches = commands.filter((c) => c.startsWith(input.toLowerCase()));
         if (matches.length === 1) setInput(matches[0]);
       } else if (e.key === "l" && e.ctrlKey) {

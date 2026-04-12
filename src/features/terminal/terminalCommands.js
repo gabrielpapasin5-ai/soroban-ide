@@ -7,12 +7,18 @@
  */
 
 /**
- * Check if a command should be routed to the backend (any `stellar` command).
+ * Check if a command should be routed to the backend.
+ * Must match backend allowedPrefixes in run.go
  */
-export const isStellarCommand = (cmd) => {
-  const trimmed = cmd.trim().toLowerCase();
-  return trimmed.startsWith('stellar ');
+const BACKEND_PREFIXES = ['stellar', 'soroban', 'cargo', 'rustc', 'rustup', 'node', 'npm', 'npx', 'wasm-opt'];
+
+export const isBackendCommand = (cmd) => {
+  const first = cmd.trim().split(/\s+/)[0]?.toLowerCase();
+  return BACKEND_PREFIXES.includes(first);
 };
+
+// Keep old name as alias
+export const isStellarCommand = isBackendCommand;
 
 /**
  * List files/folders at the given cwd relative to the workspace tree.
@@ -75,9 +81,17 @@ export const executeTerminalCommand = (cmd, cwd, setCwd, treeData) => {
   whoami                   - Current user
   date                     - Current date
 
-  stellar contract build   - Build Soroban contract (via backend)
-  stellar contract deploy  - Deploy contract (via backend)
-  stellar <...>            - Any stellar CLI command (via backend)`;
+  stellar contract build   - Build Soroban contract
+  stellar contract deploy  - Deploy contract
+  stellar --version        - Show Stellar CLI version
+  soroban <...>            - Soroban CLI commands
+  cargo build              - Build with Cargo
+  cargo test               - Run tests
+  rustc --version          - Show Rust compiler version
+  rustup <...>             - Manage Rust toolchains
+  node <...>               - Run Node.js
+  npm <...>                - Run npm commands
+  npx <...>                - Run npx commands`;
 
     case 'clear':
       return null; // Signal to clear history
@@ -118,16 +132,6 @@ export const executeTerminalCommand = (cmd, cwd, setCwd, treeData) => {
 
     case 'cat':
       return `cat: reading from workspace not yet supported`;
-
-    case 'npm':
-      if (args[0] === 'install' || args[0] === 'i') {
-        return '[npm] Installing dependencies...\n[npm] Added 42 packages in 2s';
-      } else if (args[0] === 'run' || args[0] === 'start') {
-        return `[npm] Running ${args[1] || 'start'}...\n[npm] Starting development server at http://localhost:3000`;
-      } else if (args[0] === 'build') {
-        return '[npm] Building project...\n[npm] Build completed in 5.2s';
-      }
-      return `[npm] Unknown command: ${args[0] || ''}`;
 
     default:
       return `Command not found: ${command}\nType 'help' for available commands.`;

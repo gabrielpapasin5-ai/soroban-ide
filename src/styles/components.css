@@ -1,3 +1,62 @@
+/* ─── Project Creation Loading Overlay ─── */
+
+.project-creation-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.project-creation-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.loading-subtext {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 0;
+  opacity: 0.8;
+}
+
 /* ─── Context Menu ─── */
 
 .context-menu {
@@ -33,6 +92,13 @@
 
 .context-menu-item.delete:hover {
   background: #3f1f1f;
+}
+
+.context-menu-item.disabled {
+  opacity: 0.5;
+  color: var(--text-muted);
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .context-menu-divider {

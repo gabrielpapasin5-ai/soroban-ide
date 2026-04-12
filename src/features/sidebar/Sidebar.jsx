@@ -17,7 +17,7 @@ const ActionButton = memo(({ icon, onClick, title }) => (
 /**
  * Sidebar component — contains file explorer, resize, collapse.
  */
-const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onNewFile, onNewFolder, onDeleteItem, onRenameItem, onMoveItem, onUploadFiles, onCopyItem, onCutItem, onPasteItem, clipboard, onCollapseAll, activeFileId }) => {
+const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onNewFile, onNewFolder, onDeleteItem, onRenameItem, onMoveItem, onUploadFiles, onCopyItem, onCutItem, onPasteItem, clipboard, onCollapseAll, activeFileId, lastSessionId, setTreeData }) => {
   const root = tree?.[0];
   const persistedSidebarState = useMemo(() => loadState()?.sidebar, []);
 
@@ -141,18 +141,49 @@ const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onN
 
   /* ─── Context menu handlers ─── */
 
-  const handleContextMenu = useCallback((e, node) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      nodeId: node.id,
-      nodeType: node.type,
-      nodeName: node.name,
-    });
-    setPasteTargetFolder(node.type === "folder" ? node.id : null);
-  }, []);
+  // Helper function to get node path
+  const getNodePath = useCallback(
+    (targetNode) => {
+      const parts = [];
+      const walk = (nodes, target) => {
+        for (const n of nodes) {
+          if (n.id === target.id) {
+            parts.push(n.name);
+            return true;
+          }
+          if (n.children?.length) {
+            if (walk(n.children, target)) {
+              parts.unshift(n.name);
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      walk(root?.children || [], targetNode);
+      // Remove the root folder name (it's the workspace name, not part of the path)
+      if (parts.length > 1) parts.shift();
+      return parts.join("/");
+    },
+    [root],
+  );
+
+  const handleContextMenu = useCallback(
+    (e, node) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        nodeId: node.id,
+        nodeType: node.type,
+        nodeName: node.name,
+        nodePath: getNodePath(node),
+      });
+      setPasteTargetFolder(node.type === "folder" ? node.id : null);
+    },
+    [getNodePath],
+  );
 
   const handleCloseContextMenu = useCallback(() => setContextMenu(null), []);
 
@@ -428,7 +459,7 @@ const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onN
         <div className={`sidebar-body ${dragOverBody ? "drag-over-external" : ""}`} onClick={handleBodyClick} onDragOver={handleBodyDragOver} onDragLeave={handleBodyDragLeave} onDrop={handleBodyDrop}>
           {root ? (
             <>
-              <ExplorerNode node={root} depth={0} tree={tree} expandedFolders={expandedFolders} onToggleFolder={onToggleFolder} onFileSelect={onFileSelect} activeFileId={activeFileId} onSelectFolder={setSelectedFolderId} selectedFolderId={selectedFolderId} inlineInput={inlineInput} onInlineSubmit={handleInlineSubmit} onInlineCancel={handleInlineCancel} onContextMenu={handleContextMenu} renameNode={renameNode} onRenameSubmit={handleRenameSubmit} onRenameCancel={handleRenameCancel} onMoveItem={onMoveItem} onUploadFiles={onUploadFiles} dragState={dragState} setDragState={setDragState} clipboard={clipboard} folderUploadProgress={folderUploadProgress} setFolderUploadProgress={setFolderUploadProgress} />
+              <ExplorerNode node={root} depth={0} tree={tree} expandedFolders={expandedFolders} onToggleFolder={onToggleFolder} onFileSelect={onFileSelect} activeFileId={activeFileId} onSelectFolder={setSelectedFolderId} selectedFolderId={selectedFolderId} inlineInput={inlineInput} onInlineSubmit={handleInlineSubmit} onInlineCancel={handleInlineCancel} onContextMenu={handleContextMenu} renameNode={renameNode} onRenameSubmit={handleRenameSubmit} onRenameCancel={handleRenameCancel} onMoveItem={onMoveItem} onUploadFiles={onUploadFiles} dragState={dragState} setDragState={setDragState} clipboard={clipboard} folderUploadProgress={folderUploadProgress} setFolderUploadProgress={setFolderUploadProgress} lastSessionId={lastSessionId} setTreeData={setTreeData} />
               <ContextMenu contextMenu={contextMenu} canPaste={canPaste} onCopy={handleCopyClick} onCut={handleCutClick} onPaste={handlePasteClick} onRename={handleRenameClick} onDelete={handleDeleteClick} onClose={handleCloseContextMenu} />
             </>
           ) : (

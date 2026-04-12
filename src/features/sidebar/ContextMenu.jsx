@@ -1,26 +1,38 @@
-import React, { memo } from 'react';
+import React, { memo } from "react";
 
 /**
  * Right-click context menu for sidebar file/folder operations.
  */
-const ContextMenu = memo(({
-  contextMenu,
-  canPaste,
-  onCopy,
-  onCut,
-  onPaste,
-  onRename,
-  onDelete,
-  onClose,
-}) => {
+const ContextMenu = memo(({ contextMenu, canPaste, onCopy, onCut, onPaste, onRename, onDelete, onClose }) => {
   if (!contextMenu) return null;
 
+  // Check if the node is a dependency file/folder that should be protected
+  const isDependencyNode = (nodeName, nodeType, nodePath) => {
+    const dependencyFolders = ["target", "node_modules", "dist", "build", "vendor", "deps", "__pycache__", ".venv", "venv", "cache", "tmp", ".next", ".nuxt"];
+    const dependencyFiles = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock", "Pipfile.lock", "poetry.lock"];
+
+    // Protect root folder (no path means it's the root)
+    if (!nodePath || nodePath === "") {
+      return true;
+    }
+
+    if (nodeType === "folder") {
+      return dependencyFolders.includes(nodeName);
+    } else if (nodeType === "file") {
+      // Check if file is directly a dependency file
+      if (dependencyFiles.includes(nodeName)) {
+        return true;
+      }
+      // Check if file is inside a dependency folder (path contains dependency folder)
+      return dependencyFolders.some((folder) => nodePath.includes(`/${folder}/`));
+    }
+    return false;
+  };
+
+  const isProtected = isDependencyNode(contextMenu.nodeName, contextMenu.nodeType, contextMenu.nodePath);
+
   return (
-    <div
-      className="context-menu"
-      style={{ top: contextMenu.y, left: contextMenu.x }}
-      onClick={onClose}
-    >
+    <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={onClose}>
       <div className="context-menu-item" onClick={onCopy}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -48,14 +60,14 @@ const ContextMenu = memo(({
         </div>
       )}
       <div className="context-menu-divider" />
-      <div className="context-menu-item" onClick={onRename}>
+      <div className={`context-menu-item ${isProtected ? "disabled" : ""}`} onClick={isProtected ? undefined : onRename} title={isProtected ? "Cannot rename project root or dependency files/folders" : undefined}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
         </svg>
         Rename
       </div>
-      <div className="context-menu-item delete" onClick={onDelete}>
+      <div className={`context-menu-item delete ${isProtected ? "disabled" : ""}`} onClick={isProtected ? undefined : onDelete} title={isProtected ? "Cannot delete project root or dependency files/folders" : undefined}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="3 6 5 6 21 6" />
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

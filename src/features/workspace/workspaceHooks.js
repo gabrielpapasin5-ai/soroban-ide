@@ -241,6 +241,8 @@ export const useWorkspaceState = () => {
     createProject,
     cloneFromGithub,
     setFileContents,
+    setTreeData,
+    setExpandedFolders,
   };
 };
 

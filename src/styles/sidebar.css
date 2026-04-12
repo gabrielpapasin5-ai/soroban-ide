@@ -425,3 +425,184 @@
   width: 16px;
   height: 16px;
 }
+
+/* ─── Lazy Folder ─── */
+
+.lazy-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: lazySpin 0.6s linear infinite;
+}
+
+@keyframes lazySpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lazy-badge {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  letter-spacing: 2px;
+}
+
+.sidebar-folder.lazy-folder,
+.sidebar-folder.lazy-folder.selected,
+.sidebar-folder.lazy-folder:hover,
+.sidebar-folder.lazy-folder.active {
+  color: var(--text-muted);
+  opacity: 0.5 !important;
+}
+
+/* Children of lazy folders should also have reduced opacity */
+.sidebar-folder.lazy-folder .sidebar-folder,
+.sidebar-folder.lazy-folder .sidebar-file {
+  opacity: 0.6 !important;
+}
+
+.sidebar-folder.lazy-folder .sidebar-folder:hover,
+.sidebar-folder.lazy-folder .sidebar-file:hover {
+  opacity: 0.8 !important;
+}
+
+/* More specific rules for children of lazy folders */
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file {
+  opacity: 0.6 !important;
+  color: var(--text-muted) !important;
+}
+
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder:hover,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file:hover {
+  opacity: 0.8 !important;
+}
+
+/* Children states - selected, active, etc */
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder.selected,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder.active,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file.active {
+  opacity: 0.6 !important;
+  color: var(--text-muted) !important;
+}
+
+/* Nuclear option for children */
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder.selected,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-folder.active,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file.active {
+  opacity: 0.6 !important;
+  color: var(--text-muted) !important;
+}
+
+/* Files inside lazy folders - all states */
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file:hover,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file.active,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder .sidebar-file.selected {
+  opacity: 0.6 !important;
+  color: var(--text-muted) !important;
+}
+
+/* Ensure lazy folder opacity overrides all other states */
+.sidebar-body .sidebar-folder.lazy-folder.selected,
+.sidebar-body .sidebar-folder.lazy-folder.selected:hover,
+.sidebar-body .sidebar-folder.lazy-folder.active,
+.sidebar-body .sidebar-folder.lazy-folder.active:hover {
+  color: var(--text-muted) !important;
+  opacity: 0.5 !important;
+  background: var(--explorer-bg) !important;
+}
+
+/* Override background for selected lazy folders */
+.sidebar-body .sidebar-folder.lazy-folder.selected {
+  background: transparent !important;
+}
+
+/* Override text color for all lazy folder states */
+.sidebar-body .sidebar-folder.lazy-folder,
+.sidebar-body .sidebar-folder.lazy-folder:hover,
+.sidebar-body .sidebar-folder.lazy-folder.selected,
+.sidebar-body .sidebar-folder.lazy-folder.active {
+  color: var(--text-muted) !important;
+}
+
+/* MOST SPECIFIC: Force lazy folder to stay dim in ALL states */
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder:hover,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder.selected,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder.active,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder.selected:hover,
+.sidebar-wrapper .sidebar-body .sidebar-node .sidebar-folder.lazy-folder.active:hover {
+  color: var(--text-muted) !important;
+  opacity: 0.5 !important;
+  background: transparent !important;
+}
+
+/* Force override for button element specifically */
+.sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder,
+.sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder:hover,
+.sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder.selected,
+.sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder.active {
+  color: var(--text-muted) !important;
+  opacity: 0.5 !important;
+  background: transparent !important;
+}
+
+/* ULTIMATE OVERRIDE: Use attribute selector for maximum specificity */
+.sidebar-wrapper .sidebar-body .sidebar-node button[class*="lazy-folder"],
+.sidebar-wrapper .sidebar-body .sidebar-node button[class*="lazy-folder"]:hover,
+.sidebar-wrapper .sidebar-body .sidebar-node button[class*="lazy-folder"]:selected,
+.sidebar-wrapper .sidebar-body .sidebar-node button[class*="lazy-folder"]:active {
+  color: var(--text-muted) !important;
+  opacity: 0.5 !important;
+  background: transparent !important;
+}
+
+/* FINAL ATTEMPT: Direct element override */
+div.sidebar-wrapper div.sidebar-body div.sidebar-node button.sidebar-folder.lazy-folder,
+div.sidebar-wrapper div.sidebar-body div.sidebar-node button.sidebar-folder.lazy-folder:hover,
+div.sidebar-wrapper div.sidebar-body div.sidebar-node button.sidebar-folder.lazy-folder.selected,
+div.sidebar-wrapper div.sidebar-body div.sidebar-node button.sidebar-folder.lazy-folder.active {
+  color: var(--text-muted) !important;
+  opacity: 0.5 !important;
+  background: transparent !important;
+}
+
+/* CSS Custom Properties approach - set variables on lazy folders */
+.sidebar-folder.lazy-folder {
+  --folder-opacity: 0.5;
+  --folder-color: var(--text-muted);
+  --folder-bg: transparent;
+}
+
+/* Use the custom properties */
+.sidebar-folder.lazy-folder,
+.sidebar-folder.lazy-folder:hover,
+.sidebar-folder.lazy-folder.selected,
+.sidebar-folder.lazy-folder.active {
+  opacity: var(--folder-opacity, 0.5) !important;
+  color: var(--folder-color, var(--text-muted)) !important;
+  background: var(--folder-bg, transparent) !important;
+}
+
+/* NUCLEAR OPTION: Use ID selector for maximum specificity */
+#app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder,
+#app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder:hover,
+#app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder.selected,
+#app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder.active,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder:hover,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder.selected,
+html body #app .sidebar-wrapper .sidebar-body .sidebar-node button.sidebar-folder.lazy-folder.active {
+  opacity: 0.5 !important;
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  pointer-events: auto !important;
+}

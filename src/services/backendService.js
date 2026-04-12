@@ -2,11 +2,12 @@
  * Backend integration service for Soroban Studio.
  *
  * Handles communication with the Go backend at /api (proxied in dev).
- * - POST /api/run  → submit project files for compilation
- * - WS   /api/ws   → stream build output in real-time
+ * - POST /api/run    → submit project files + command for execution
+ * - WS   /api/ws     → stream output in real-time
+ * - GET  /api/files  → lazy-load folder contents
  */
 
-const API_BASE = '/api';
+const API_BASE = "/api";
 
 /**
  * Walk the workspace tree and collect all files into a flat
@@ -15,13 +16,13 @@ const API_BASE = '/api';
 export const collectProjectFiles = (treeData, fileContents) => {
   const files = {};
 
-  const walk = (nodes, parentPath = '') => {
+  const walk = (nodes, parentPath = "") => {
     for (const node of nodes) {
       // Skip the root folder name itself — paths start from its children
-      const isRoot = parentPath === '' && node.type === 'folder' && nodes.length === 1 && nodes.indexOf(node) === 0;
-      const currentPath = isRoot ? '' : (parentPath ? `${parentPath}/${node.name}` : node.name);
+      const isRoot = parentPath === "" && node.type === "folder" && nodes.length === 1 && nodes.indexOf(node) === 0;
+      const currentPath = isRoot ? "" : parentPath ? `${parentPath}/${node.name}` : node.name;
 
-      if (node.type === 'file') {
+      if (node.type === "file") {
         const filePath = parentPath ? `${parentPath}/${node.name}` : node.name;
         const content = fileContents[node.id];
         if (content !== undefined) {
@@ -40,15 +41,19 @@ export const collectProjectFiles = (treeData, fileContents) => {
 };
 
 /**
- * Submit project files to the backend for compilation.
+ * Submit project files + command to the backend for execution.
  * @param {Object} files - { "path/to/file": "content" }
+ * @param {string} command - The exact CLI command to run (e.g. "stellar --version")
  * @returns {Promise<string>} session_id
  */
-export const submitBuild = async (files) => {
+export const submitCommand = async (files, command) => {
+  console.log("[backendService] Sending command:", command);
+  console.log("[backendService] Files:", Object.keys(files));
+
   const response = await fetch(`${API_BASE}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files }),
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ files, command }),
   });
 
   if (!response.ok) {
@@ -66,33 +71,36 @@ export const submitBuild = async (files) => {
   return data.session_id;
 };
 
+// Keep old name as alias for backward compatibility
+export const submitBuild = (files) => submitCommand(files, "stellar contract build");
+
 /**
- * Open a WebSocket connection to stream build output.
+ * Open a WebSocket connection to stream command output.
  *
- * @param {string} sessionId - from submitBuild()
+ * @param {string} sessionId - from submitCommand()
  * @param {Object} callbacks
  * @param {function} callbacks.onMessage - called with { type, content } for each message
  * @param {function} callbacks.onError   - called with error string
- * @param {function} callbacks.onDone    - called when build is complete
+ * @param {function} callbacks.onDone    - called when command is complete
  * @returns {function} cleanup — call to close the WebSocket
  */
-export const connectBuildStream = (sessionId, { onMessage, onError, onDone }) => {
+export const connectBuildStream = (sessionId, { onMessage, onError, onDone, onClose }) => {
   // Build WebSocket URL from current page location
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}${API_BASE}/ws?session_id=${sessionId}`;
 
   const ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    onMessage({ type: 'info', content: '⚡ Connected to build server...' });
+    // Silent connect - no message
   };
 
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
 
-      // "done" signal means build is complete
-      if (msg.type === 'done') {
+      // "done" signal means command is complete
+      if (msg.type === "done") {
         onDone();
         ws.close();
         return;
@@ -101,17 +109,19 @@ export const connectBuildStream = (sessionId, { onMessage, onError, onDone }) =>
       onMessage(msg);
     } catch {
       // If not JSON, treat as raw text
-      onMessage({ type: 'stdout', content: event.data });
+      onMessage({ type: "stdout", content: event.data });
     }
   };
 
   ws.onerror = () => {
-    onError('WebSocket connection error');
+    onError("WebSocket connection error");
   };
 
   ws.onclose = (event) => {
     if (!event.wasClean) {
-      onError('Connection to build server lost');
+      onError("Connection to build server lost");
+    } else if (onClose) {
+      onClose(); // Call onClose when connection closes cleanly (command finished)
     }
   };
 
@@ -121,4 +131,30 @@ export const connectBuildStream = (sessionId, { onMessage, onError, onDone }) =>
       ws.close();
     }
   };
+};
+
+/**
+ * Lazy-load folder contents from the backend.
+ * Used when user clicks a folder marked as lazy (e.g. node_modules, target).
+ *
+ * @param {string} sessionId - Active session
+ * @param {string} path - Relative path inside the workspace
+ * @returns {Promise<Array>} Array of FileTreeNode objects
+ */
+export const fetchFolderContents = async (sessionId, path) => {
+  const params = new URLSearchParams({ session_id: sessionId, path });
+  const response = await fetch(`${API_BASE}/files?${params}`);
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message;
+    try {
+      message = JSON.parse(text).error;
+    } catch {
+      message = text;
+    }
+    throw new Error(message || `Failed to load folder: ${response.status}`);
+  }
+
+  return response.json();
 };
