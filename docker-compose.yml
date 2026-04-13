@@ -8,6 +8,7 @@ services:
       args:
         # Pass VITE_ variables from the environment to the Docker build process
         - VITE_GITHUB_CLIENT_ID=${VITE_GITHUB_CLIENT_ID}
+        - VITE_API_BASE=${VITE_API_BASE}
     image: soroban-studio-frontend:latest
     container_name: soroban-studio-web
     ports:

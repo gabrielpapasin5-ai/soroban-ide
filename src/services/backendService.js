@@ -7,7 +7,7 @@
  * - GET  /api/files  → lazy-load folder contents
  */
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 /**
  * Walk the workspace tree and collect all files into a flat
@@ -85,9 +85,15 @@ export const submitBuild = (files) => submitCommand(files, "stellar contract bui
  * @returns {function} cleanup — call to close the WebSocket
  */
 export const connectBuildStream = (sessionId, { onMessage, onError, onDone, onClose }) => {
-  // Build WebSocket URL from current page location
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${protocol}//${window.location.host}${API_BASE}/ws?session_id=${sessionId}`;
+  let wsUrl;
+  if (API_BASE.startsWith("http")) {
+    // If API_BASE is absolute (e.g. on Vercel), convert http/https to ws/wss
+    wsUrl = API_BASE.replace(/^http/, "ws") + `/ws?session_id=${sessionId}`;
+  } else {
+    // If API_BASE is relative (e.g. in local dev), use current window host
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    wsUrl = `${protocol}//${window.location.host}${API_BASE}/ws?session_id=${sessionId}`;
+  }
 
   const ws = new WebSocket(wsUrl);
 
