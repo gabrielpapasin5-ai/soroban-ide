@@ -6,7 +6,7 @@
  * to bypass CORS restrictions.
  */
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 // ─── Configuration ───────────────────────────────────────────────
 // Replace with your GitHub OAuth App Client ID
