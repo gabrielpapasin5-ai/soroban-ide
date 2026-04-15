@@ -158,7 +158,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
       const repo = await createRepository(token, newRepoName.trim(), newRepoPrivate, newRepoDesc.trim());
       setPushProgress({ step: 1, total: 6, detail: "Repository created! Pushing files..." });
 
-      const files = collectProjectFiles(treeData, fileContents);
+      const files = collectProjectFiles(treeData, fileContents, { includeAll: true });
       const result = await pushFilesToRepo(
         token,
         repo.owner.login,
@@ -189,7 +189,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
       setPushProgress({ step: 0, total: 5, detail: "Collecting files..." });
 
       try {
-        const files = collectProjectFiles(treeData, fileContents);
+        const files = collectProjectFiles(treeData, fileContents, { includeAll: true });
         const result = await pushFilesToRepo(
           token,
           repo.owner.login,
@@ -338,11 +338,6 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
           </div>
         )}
 
-        {/* Push error */}
-        {pushError && (
-          <div className="github-error">{pushError}</div>
-        )}
-
         {/* Push progress */}
         {isPushing && pushProgress && (
           <div className="github-progress-card">
@@ -359,6 +354,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
         {/* Main view */}
         {activeView === "main" && !isPushing && (
           <div className="github-actions">
+            {pushError && <div className="github-error">{pushError}</div>}
             <button
               className="github-action-card"
               onClick={() => {
@@ -400,6 +396,8 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
               </svg>
               Back
             </button>
+
+            {pushError && <div className="github-error">{pushError}</div>}
 
             <div className="github-form-group">
               <label className="github-form-label">Repository Name</label>
@@ -454,6 +452,8 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
               </svg>
               Back
             </button>
+
+            {pushError && <div className="github-error">{pushError}</div>}
 
             <input
               className="github-form-input github-search-input"

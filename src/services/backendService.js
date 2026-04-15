@@ -44,9 +44,10 @@ export const resetSessionId = () => {
 /**
  * Walk the workspace tree and collect all source files into a flat
  * { "relative/path": "content" } map for the backend.
- * Skips images and other non-source binaries to keep payloads small.
+ * By default skips images and other non-source binaries to keep payloads small.
  */
-export const collectProjectFiles = (treeData, fileContents) => {
+export const collectProjectFiles = (treeData, fileContents, options = {}) => {
+  const { includeAll = false } = options;
   const files = {};
   
   // Only allow source-related extensions
@@ -66,7 +67,7 @@ export const collectProjectFiles = (treeData, fileContents) => {
         const ext = node.name.includes(".") ? node.name.toLowerCase().slice(node.name.lastIndexOf(".")) : node.name;
         
         // Filter: only include files that match common source extensions
-        const isAllowed = ALLOWED_EXTENSIONS.some(allowed => 
+        const isAllowed = includeAll || ALLOWED_EXTENSIONS.some(allowed => 
           ext === allowed || node.name === allowed
         );
 

@@ -128,7 +128,7 @@ export const getUserInfo = async (token) => {
       throw new Error("Token expired. Please reconnect.");
     }
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to fetch user info (Status: ${res.status})`);
+    throw new Error(formatGithubError(errorData, `Failed to fetch user info (Status: ${res.status})`));
   }
 
   return res.json();
@@ -146,7 +146,7 @@ export const listUserRepos = async (token, page = 1) => {
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to list repositories (Status: ${res.status})`);
+    throw new Error(formatGithubError(errorData, `Failed to list repositories (Status: ${res.status})`));
   }
   return res.json();
 };
@@ -171,10 +171,42 @@ export const createRepository = async (token, name, isPrivate = false, descripti
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || "Failed to create repository");
+    throw new Error(formatGithubError(data, "Failed to create repository"));
   }
 
   return res.json();
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────
+/**
+ * Check if a file is binary based on extension.
+ * This ensures we use correct encoding when pushing to GitHub.
+ */
+const isBinaryFile = (filename) => {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "pdf", "zip", "tar", "gz", "exe", "dll"].includes(ext);
+};
+
+/**
+ * Format GitHub API error response into a human-readable message.
+ * Extracts details from data.errors if present.
+ */
+const formatGithubError = (data, defaultMsg) => {
+  if (!data) return defaultMsg;
+  
+  if (data.errors && Array.isArray(data.errors)) {
+    const details = data.errors.map(err => {
+      if (typeof err === "string") return err;
+      if (err.message) return err.message;
+      if (err.field) return `${err.field} ${err.code || "invalid"}`;
+      return JSON.stringify(err);
+    }).join(", ");
+    
+    // If we have specific details, prioritize them over generic "Validation Failed" messages
+    if (details) return details;
+  }
+  
+  return data.message || defaultMsg;
 };
 
 // ─── Push Files ──────────────────────────────────────────────────
@@ -235,18 +267,20 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
     const path = filePaths[i];
     const content = files[path];
 
+    const isBinary = isBinaryFile(path);
+
     const blobRes = await fetch(`${apiBase}/git/blobs`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         content,
-        encoding: "utf-8",
+        encoding: isBinary ? "base64" : "utf-8",
       }),
     });
 
     if (!blobRes.ok) {
       const errorData = await blobRes.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to create blob for ${path} (Status: ${blobRes.status})`);
+      throw new Error(formatGithubError(errorData, `Failed to create blob for ${path} (Status: ${blobRes.status})`));
     }
 
     const blobData = await blobRes.json();
@@ -274,7 +308,7 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
 
   if (!treeRes.ok) {
     const errorData = await treeRes.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to create Git tree (Status: ${treeRes.status})`);
+    throw new Error(formatGithubError(errorData, `Failed to create Git tree (Status: ${treeRes.status})`));
   }
   const treeData = await treeRes.json();
 
@@ -297,7 +331,7 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
 
   if (!commitRes.ok) {
     const errorData = await commitRes.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to create commit (Status: ${commitRes.status})`);
+    throw new Error(formatGithubError(errorData, `Failed to create commit (Status: ${commitRes.status})`));
   }
   const commitData = await commitRes.json();
 
@@ -313,7 +347,7 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
     });
     if (!updateRes.ok) {
       const errorData = await updateRes.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to update branch reference (Status: ${updateRes.status})`);
+      throw new Error(formatGithubError(errorData, `Failed to update branch reference (Status: ${updateRes.status})`));
     }
   } else {
     // Create new ref (first commit to the repo)
@@ -327,7 +361,7 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
     });
     if (!createRes.ok) {
       const errorData = await createRes.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to create branch reference (Status: ${createRes.status})`);
+      throw new Error(formatGithubError(errorData, `Failed to create branch reference (Status: ${createRes.status})`));
     }
   }
 
