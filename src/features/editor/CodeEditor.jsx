@@ -71,6 +71,7 @@ const CodeEditor = ({ fileId, filePath, content, language, theme, onChange, onCu
         detectIndentation: true,
         trimAutoWhitespace: true,
         wordWrap: "off",
+        padding: { top: 20, bottom: 20 },
         overviewRulerBorder: false,
         renderWhitespace: "none",
         snippetSuggestions: "inline",
@@ -146,8 +147,6 @@ const CodeEditor = ({ fileId, filePath, content, language, theme, onChange, onCu
     if (!theme) return;
     const monacoTheme = 
       theme === "light" ? "vs" : 
-      theme === "midnight" ? "community-midnight" : 
-      theme === "solarized-light" ? "community-solarized" :
       "community-material";
     monaco.editor.setTheme(monacoTheme);
   }, [theme]);
