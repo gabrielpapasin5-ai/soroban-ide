@@ -54,7 +54,7 @@ const Layout = () => {
   useEffect(() => {
     activeFileIdRef.current = tabManager.activeFileId;
   }, [tabManager.activeFileId]);
-  
+
   // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -117,7 +117,6 @@ const Layout = () => {
     setCursorInfo(info);
   }, []);
 
-
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (event) => {
@@ -152,11 +151,11 @@ const Layout = () => {
           // Resolve target folder
           const selectedNode = workspace.flattenedNodes.get(selectedNodeId);
           let targetId = workspace.rootId;
-          
+
           if (selectedNode) {
-            targetId = selectedNode.type === 'folder' ? selectedNode.id : (selectedNode.parentId || workspace.rootId);
+            targetId = selectedNode.type === "folder" ? selectedNode.id : selectedNode.parentId || workspace.rootId;
           }
-          
+
           workspace.clipboard.pasteItem(targetId);
         }
       }
@@ -177,35 +176,38 @@ const Layout = () => {
   }, []);
 
   // Create project handlers
-  const handleCreateProject = useCallback(async (templateName = "hello-world") => {
-    try {
-      setIsCreatingProject(true);
-
-      // Reset session to ensure a clean workspace on the backend
-      resetSessionId();
-
-      // Reset state for a fresh start
-      tabManager.resetTabs();
-      
-      // Initialize locally using the specified template from BACKEND filesystem
-      console.log(`[Layout] Fetching ${templateName} template from backend filesystem...`);
+  const handleCreateProject = useCallback(
+    async (templateName = "hello-world") => {
       try {
-        const { tree, contents } = await fetchTemplate(templateName);
-        workspace.setTreeData(tree);
-        workspace.setFileContents(contents);
-      } catch (templateError) {
-        console.error(`Failed to fetch ${templateName} template from backend, falling back to local blank project:`, templateError);
-        const { tree, contents } = createBlankWorkspace();
-        workspace.setTreeData(tree);
-        workspace.setFileContents(contents);
+        setIsCreatingProject(true);
+
+        // Reset session to ensure a clean workspace on the backend
+        resetSessionId();
+
+        // Reset state for a fresh start
+        tabManager.resetTabs();
+
+        // Initialize locally using the specified template from BACKEND filesystem
+        console.log(`[Layout] Fetching ${templateName} template from backend filesystem...`);
+        try {
+          const { tree, contents } = await fetchTemplate(templateName);
+          workspace.setTreeData(tree);
+          workspace.setFileContents(contents);
+        } catch (templateError) {
+          console.error(`Failed to fetch ${templateName} template from backend, falling back to local blank project:`, templateError);
+          const { tree, contents } = createBlankWorkspace();
+          workspace.setTreeData(tree);
+          workspace.setFileContents(contents);
+        }
+
+        setIsCreatingProject(false);
+      } catch (error) {
+        console.error("Failed to create project:", error);
+        setIsCreatingProject(false);
       }
-      
-      setIsCreatingProject(false);
-    } catch (error) {
-      console.error("Failed to create project:", error);
-      setIsCreatingProject(false);
-    }
-  }, [workspace, tabManager]);
+    },
+    [workspace, tabManager],
+  );
 
   const handleOpenCreateProject = useCallback(() => {
     setShowCreateMenu(false);
@@ -215,7 +217,7 @@ const Layout = () => {
   // Auto-trigger Create Project on first-time initialization
   useEffect(() => {
     if (initializationStartedRef.current) return;
-    
+
     const state = loadState();
     if (!state?.workspace) {
       initializationStartedRef.current = true;
@@ -255,30 +257,30 @@ const Layout = () => {
           <SettingsPanel currentTheme={theme} onThemeChange={setTheme} onClose={() => setIsSettingsOpen(false)} />
         ) : (
           <>
-            <Sidebar 
-              tree={workspace.treeData} 
-              expandedFolders={workspace.expandedFolders} 
-              onToggleFolder={workspace.toggleFolder} 
+            <Sidebar
+              tree={workspace.treeData}
+              expandedFolders={workspace.expandedFolders}
+              onToggleFolder={workspace.toggleFolder}
               onFileSelect={(id) => {
                 tabManager.selectFile(id);
                 setSelectedNodeId(id);
-              }} 
+              }}
               onNodeSelect={setSelectedNodeId}
-              onNewFile={(name, parentId) => handleNewItem("file", name, parentId)} 
-              onNewFolder={(name, parentId) => handleNewItem("folder", name, parentId)} 
-              onDeleteItem={handleDeleteItem} 
-              onRenameItem={workspace.renameItem} 
-              onMoveItem={workspace.moveItem} 
-              onUploadFiles={workspace.uploadFiles} 
-              onCopyItem={workspace.clipboard.copyItem} 
-              onCutItem={workspace.clipboard.cutItem} 
-              onPasteItem={workspace.clipboard.pasteItem} 
-              clipboard={workspace.clipboard.clipboard} 
-              onCollapseAll={workspace.collapseAll} 
-              activeFileId={tabManager.activeFileId} 
+              onNewFile={(name, parentId) => handleNewItem("file", name, parentId)}
+              onNewFolder={(name, parentId) => handleNewItem("folder", name, parentId)}
+              onDeleteItem={handleDeleteItem}
+              onRenameItem={workspace.renameItem}
+              onMoveItem={workspace.moveItem}
+              onUploadFiles={workspace.uploadFiles}
+              onCopyItem={workspace.clipboard.copyItem}
+              onCutItem={workspace.clipboard.cutItem}
+              onPasteItem={workspace.clipboard.pasteItem}
+              clipboard={workspace.clipboard.clipboard}
+              onCollapseAll={workspace.collapseAll}
+              activeFileId={tabManager.activeFileId}
               selectedNodeId={selectedNodeId}
-              lastSessionId={lastSessionId} 
-              setTreeData={workspace.setTreeData} 
+              lastSessionId={lastSessionId}
+              setTreeData={workspace.setTreeData}
               treeData={workspace.treeData}
               fileContents={workspace.fileContents}
               isSettingsOpen={isSettingsOpen}
@@ -286,7 +288,7 @@ const Layout = () => {
             />
 
             {/* Project Creation Loading Overlay - Glass Blur */}
-            <div className={`project-creation-overlay ${isCreatingProject ? 'visible' : ""}`}>
+            <div className={`project-creation-overlay ${isCreatingProject ? "visible" : ""}`}>
               <div className="project-creation-content">
                 <div className="loading-spinner"></div>
                 <div className="loading-text">Creating Soroban Project...</div>
@@ -304,18 +306,28 @@ const Layout = () => {
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
-                    <span className="create-new-label">Create New Project</span>
+                    <span className="create-new-label">Create Project</span>
                   </button>
                   {showCreateMenu && (
                     <div className="create-new-dropdown">
-                      <div className="create-new-item" onClick={() => { handleCreateProject("hello-world"); setShowCreateMenu(false); }}>
+                      <div
+                        className="create-new-item"
+                        onClick={() => {
+                          handleCreateProject("hello-world");
+                          setShowCreateMenu(false);
+                        }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
                         </svg>
                         Create Hello World
                       </div>
-                      <div className="create-new-item" onClick={() => { handleCreateProject("stellar-workshop"); setShowCreateMenu(false); }}>
+                      <div
+                        className="create-new-item"
+                        onClick={() => {
+                          handleCreateProject("stellar-workshop");
+                          setShowCreateMenu(false);
+                        }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
@@ -337,11 +349,7 @@ const Layout = () => {
                 <Editor fileId={tabManager.activeFileId} filePath={activeFile?.path} content={activeContent} language={language} theme={theme} onChange={handleEditorChange} onCursorChange={handleCursorChange} />
               </div>
 
-              <Terminal 
-                activeFileName={activeFile?.path} 
-                treeData={workspace.treeData} 
-                fileContents={workspace.fileContents} 
-              />
+              <Terminal activeFileName={activeFile?.path} treeData={workspace.treeData} fileContents={workspace.fileContents} />
             </div>
           </>
         )}
@@ -388,7 +396,6 @@ const Layout = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

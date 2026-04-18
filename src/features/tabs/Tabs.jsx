@@ -5,11 +5,7 @@ import React, { memo } from "react";
  */
 const Tabs = memo(({ tabs, activeFileId, previewTabId, files, onTabSelect, onTabClose }) => {
   if (!tabs.length) {
-    return (
-      <div className="tabs-bar tabs-empty">
-        <span className="tabs-placeholder">Open a file to start editing</span>
-      </div>
-    );
+    return <div className="tabs-bar tabs-empty"></div>;
   }
 
   return (

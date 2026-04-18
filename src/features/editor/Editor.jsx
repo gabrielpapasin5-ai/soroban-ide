@@ -14,6 +14,7 @@ const Editor = ({ fileId, filePath, content = "", theme, onChange, onCursorChang
     return (
       <div className="welcome-screen">
         <img src="/assets/images/soroban.png" alt="Soroban Logo" className="welcome-logo" />
+        <p className="welcome-message">Open a file to start editing</p>
       </div>
     );
   }
