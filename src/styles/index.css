@@ -2,15 +2,15 @@
 
 :root {
   /* Default: Pure Monochromatic Theme (Dark Grey based) */
-  --main-bg: #0d0d0f;
+  --main-bg: #151517;
   --sidebar-bg: #0d0d0f;
   --explorer-bg: #0d0d0f;
   --tab-bg: #1a1a1c;
   --active-tab-bg: #151517;
   --border-color: #222225;
   --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
+  --text-secondary: #d4d4d8;
+  --text-muted: #71717a;
   --hover-bg: #1e1e21;
   --active-bg: #27272a;
   --accent: #ffffff;
@@ -29,8 +29,8 @@
   --editor-selection: #3f3f46;
   
   /* Terminal Tokens - Colored Prompt */
-  --term-bg: #0d0d0f;
-  --term-win-bg: #09090b;
+  --term-bg: #151517;
+  --term-win-bg: #101012;
   --term-fg: #f4f4f5;
   --term-user: #4fc1ff;
   --term-path: #c3e88d;
@@ -44,25 +44,25 @@
   --sidebar-resize-handle: #27272a;
 
   /* UI Dimensions */
-  --header-height: 48px;
+  --header-height: 56px;
 
   /* Font Sizes */
-  --font-size-xs: 12px;
+  --font-size-xs: 13px;
   --font-size-sm: 14px;
   --font-size-base: 15px;
 }
 
 [data-theme="dark"] {
   /* Mirror :root for Community Dark to ensure consistency */
-  --main-bg: #0d0d0f;
+  --main-bg: #151517;
   --sidebar-bg: #0d0d0f;
   --explorer-bg: #0d0d0f;
   --tab-bg: #1a1a1c;
   --active-tab-bg: #151517;
   --border-color: #222225;
   --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
+  --text-secondary: #d4d4d8;
+  --text-muted: #71717a;
   --hover-bg: #1e1e21;
   --active-bg: #27272a;
   --accent: #ffffff;
@@ -79,8 +79,8 @@
   --editor-line-highlight: #1e1e21;
   --editor-selection: #3f3f46;
   
-  --term-bg: #0d0d0f;
-  --term-win-bg: #09090b;
+  --term-bg: #151517;
+  --term-win-bg: #101012;
   --term-fg: #f4f4f5;
   --term-user: #4fc1ff;
   --term-path: #c3e88d;
@@ -130,78 +130,7 @@
   --sidebar-resize-handle: #e1e4e8;
 }
 
-[data-theme="midnight"] {
-  --main-bg: #000000;
-  --sidebar-bg: #000000;
-  --explorer-bg: #000000;
-  --tab-bg: #080808;
-  --active-tab-bg: #000000;
-  --border-color: #111111;
-  --text-primary: #ffffff;
-  --text-secondary: #aaaaaa;
-  --text-muted: #333333;
-  --hover-bg: #0d0d0d;
-  --active-bg: #1a1a1a;
-  --accent: #ffffff;
-  --accent-hover: #cccccc;
-  --status-bar-bg: #000000;
-  --status-bar-text: #666666;
-  
-  --editor-bg: #000000;
-  --editor-fg: #ffffff;
-  --editor-line-highlight: #080808;
-  --editor-selection: #1a1a1a;
-  
-  /* Terminal Tokens - Colored OLED Prompt */
-  --term-bg: #000000;
-  --term-win-bg: #000000;
-  --term-fg: #ffffff;
-  --term-user: #4fc1ff;
-  --term-path: #c3e88d;
-  --term-symbol: #ff5370;
-  --term-accent: #89ddff;
-  --term-error: #ffffff;
-  --term-info: #aaaaaa;
-  --term-muted: #444444;
-}
 
-/* Solarized Light is now Monochrome Warm Gray */
-[data-theme="solarized-light"] {
-  --main-bg: #f5f5f5;
-  --sidebar-bg: #e5e5e5;
-  --explorer-bg: #f5f5f5;
-  --tab-bg: #d4d4d4;
-  --active-tab-bg: #f5f5f5;
-  --border-color: #a1a1aa;
-  --text-primary: #27272a;
-  --text-secondary: #52525b;
-  --text-muted: #71717a;
-  --hover-bg: #e5e5e5;
-  --active-bg: #d4d4d4;
-  --accent: #18181b;
-  --accent-hover: #000000;
-  --status-bar-bg: #e5e5e5;
-  --status-bar-text: #52525b;
-  
-  --editor-bg: #f5f5f5;
-  --editor-fg: #27272a;
-  --editor-line-highlight: #e5e5e5;
-  --editor-selection: #d4d4d4;
-  
-  /* Terminal Tokens */
-  --term-bg: #f5f5f5;
-  --term-win-bg: #e5e5e5;
-  --term-fg: #27272a;
-  --term-user: #18181b;
-  --term-path: #52525b;
-  --term-symbol: #18181b;
-  --term-accent: #18181b;
-  --term-error: #000000;
-  --term-info: #52525b;
-  --term-muted: #71717a;
-  
-  --sidebar-resize-handle: #a1a1aa;
-}
 
 /* ─── Reset ─── */
 
@@ -248,7 +177,40 @@ body {
   height: var(--header-height);
   display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  justify-content: space-between;
   background: var(--tab-bg);
   overflow: visible;
+  min-width: 0; /* Prevent header from expanding beyond parent */
+  width: 100%;
+}
+
+.welcome-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--editor-bg);
+  opacity: 0.6;
+}
+
+.welcome-logo {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 24px;
+}
+
+.welcome-message {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--editor-bg);
+  padding-top: 12px;
+  overflow: hidden;
 }

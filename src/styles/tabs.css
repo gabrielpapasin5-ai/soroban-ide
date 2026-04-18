@@ -1,44 +1,69 @@
 /* ─── Tab Bar ─── */
 
 .tabs-bar {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  border-bottom: 1px solid var(--border-color);
+  align-items: stretch; /* Full height tabs */
   height: 100%;
   background: var(--tab-bg);
-  padding-left: 8px;
-  gap: 1px;
+  padding-left: 0;
+  gap: 0;
   overflow-x: auto;
   overscroll-behavior: none;
+  scrollbar-width: none;
+}
+
+.tabs-bar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .tab {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 4px 4px 0 0;
-  border: 1px solid transparent;
-  border-bottom: none;
+  height: 100%;
+  padding: 0 16px;
+  border-radius: 0;
+  border: none;
   cursor: pointer;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
   background: transparent;
   max-width: 200px;
-  min-width: 80px;
-  transition: background 0.2s ease;
+  min-width: 100px;
+  transition:
+    background 0.2s,
+    color 0.2s;
+  margin-right: -1px; /* Overlap borders for seamless connection */
+  outline: none;
 }
 
 .tab:hover {
   background: var(--hover-bg);
 }
 
+.tab:focus,
+.tab:active {
+  outline: none;
+  border-bottom: none;
+}
+
 .tab.active {
   background: var(--active-tab-bg);
-  border-color: var(--border-color);
+  border: none;
+  border-top: 2px solid var(--text-muted);
   color: var(--text-primary);
-  border-bottom: 1px solid var(--active-tab-bg);
-  margin-bottom: -1px;
+  z-index: 10;
+  outline: none;
+  transition: none;
+  position: relative;
+  height: 100%;
+}
+
+/* Remove the pseudo-element mask in favor of box-shadow which is more precise across zoom levels */
+.tab.active::after {
+  display: none;
 }
 
 .tab-label {
@@ -54,16 +79,16 @@
 }
 
 .tab-close {
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   display: grid;
   place-items: center;
-  border-radius: 4px;
-  font-size: var(--font-size-base);
+  border-radius: 6px;
+  font-size: 18px;
   flex-shrink: 0;
   opacity: 0;
   transition:
@@ -84,8 +109,9 @@
 }
 
 .tab-close:hover {
-  background: var(--hover-bg);
+  background: transparent;
   color: var(--text-primary);
+  transform: scale(1.1);
 }
 
 .tabs-empty {
