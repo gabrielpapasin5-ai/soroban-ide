@@ -11,7 +11,7 @@ export const configureMonaco = () => {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "", foreground: "D4D4D4", background: "1a1a1a" },
+      { token: "", foreground: "D4D4D4", background: "151517" },
       // Keywords (const, let, function, return, if, else) - Blue
       { token: "keyword", foreground: "569CD6", fontStyle: "bold" },
       { token: "keyword.control", foreground: "C586C0" },
@@ -92,7 +92,7 @@ export const configureMonaco = () => {
       { token: "super", foreground: "569CD6", fontStyle: "bold" },
     ],
     colors: {
-      "editor.background": "#1a1a1a",
+      "editor.background": "#151517",
       "editor.foreground": "#e0e0e0",
       "editorLineNumber.foreground": "#424242",
       "editorLineNumber.activeForeground": "#e0e0e0",
@@ -104,11 +104,11 @@ export const configureMonaco = () => {
       "editor.findMatchHighlightBackground": "#C792EA66",
       "editorBracketMatch.background": "#2a2a2a",
       "editorBracketMatch.border": "#89DDFF",
-      "editorGutter.background": "#1a1a1a",
+      "editorGutter.background": "#151517",
       "editorGutter.modifiedBackground": "#82AAFF",
       "editorGutter.addedBackground": "#C3E88D",
       "editorGutter.deletedBackground": "#FF5370",
-      "editorSuggestWidget.background": "#1a1a1a",
+      "editorSuggestWidget.background": "#151517",
       "editorSuggestWidget.border": "#2d2d2d",
       "editorSuggestWidget.foreground": "#e0e0e0",
       "editorSuggestWidget.highlightForeground": "#82AAFF",
@@ -203,58 +203,7 @@ export const configureMonaco = () => {
     },
   });
 
-  // OLED Midnight Theme
-  monaco.editor.defineTheme("community-midnight", {
-    base: "vs-dark",
-    inherit: true,
-    rules: [
-      { token: "", foreground: "FFFFFF", background: "000000" },
-    ],
-    colors: {
-      "editor.background": "#000000",
-      "editor.foreground": "#ffffff",
-      "editorLineNumber.foreground": "#333333",
-      "editorLineNumber.activeForeground": "#ffffff",
-      "editor.selectionBackground": "#333333",
-      "editor.inactiveSelectionBackground": "#111111",
-      "editor.lineHighlightBackground": "#080808",
-      "editor.lineHighlightBorder": "#111111",
-      "editorGutter.background": "#000000",
-      "editorSuggestWidget.background": "#000000",
-    },
-  });
 
-  // Solarized Light Theme
-  monaco.editor.defineTheme("community-solarized", {
-    base: "vs",
-    inherit: true,
-    rules: [
-      { token: "", foreground: "586e75", background: "fdf6e3" },
-      { token: "keyword", foreground: "859900", fontStyle: "bold" }, // Green instead of Cyan
-      { token: "variable", foreground: "657b83" }, // Neutral instead of Blue
-      { token: "function", foreground: "b58900" }, // Yellow
-      { token: "string", foreground: "d33682" }, // Magenta
-      { token: "number", foreground: "6c71c4" }, // Violet
-      { token: "constant", foreground: "cb4b16" }, // Orange
-      { token: "comment", foreground: "93a1a1", fontStyle: "italic" },
-      { token: "type", foreground: "cb4b16" }, // Orange
-      { token: "class", foreground: "cb4b16" },
-      { token: "tag", foreground: "859900" },
-    ],
-    colors: {
-      "editor.background": "#fdf6e3",
-      "editor.foreground": "#586e75",
-      "editorLineNumber.foreground": "#93a1a1",
-      "editorLineNumber.activeForeground": "#586e75",
-      "editor.selectionBackground": "#eee8d5",
-      "editor.inactiveSelectionBackground": "#eee8d5",
-      "editor.lineHighlightBackground": "#eee8d5",
-      "editor.lineHighlightBorder": "#d5ceba",
-      "editorGutter.background": "#eee8d5",
-      "editorSuggestWidget.background": "#fdf6e3",
-      "editorSuggestWidget.border": "#d5ceba",
-    },
-  });
 };
 
 // Run configuration immediately on import
