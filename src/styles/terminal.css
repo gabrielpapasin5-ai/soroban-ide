@@ -117,6 +117,7 @@
   background: var(--term-win-bg);
   color: var(--term-fg);
   overscroll-behavior: none;
+  user-select: text; /* Ensure text can be selected and copied */
 }
 
 .terminal.collapsed .terminal-window {
@@ -184,6 +185,7 @@
   word-break: break-all;
   font-family: inherit;
   font-size: inherit;
+  user-select: text; /* Allow copying outputs */
 }
 
 /* ─── Input ─── */

@@ -281,39 +281,40 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
       } else if (e.key === "l" && e.ctrlKey) {
         e.preventDefault();
         setHistory([]);
-      } else if (e.key === "c" && e.ctrlKey) {
-        // Selection-aware Ctrl+C: if text is selected, allow browser to copy.
-        // Otherwise, perform terminal reset/kill (SIGINT).
+      } else if (e.key.toLowerCase() === "c" && (e.ctrlKey || e.metaKey)) {
+        // Selection-aware Copy: if text is selected, allow browser to copy.
         const selection = window.getSelection()?.toString();
         if (selection) {
+          // If it's Cmd+C (Mac) or Ctrl+X/C with selection, let the browser handle it
           return;
         }
 
-        e.preventDefault();
-        if (isRunning) {
-          // SIGINT: kill the running backend process
+        // If it's Ctrl+C without selection, perform SIGINT (Command Cancellation)
+        if (e.ctrlKey && e.key.toLowerCase() === "c") {
           e.preventDefault();
-          
-          if (activeJobIdRef.current && lastSessionIdRef.current) {
-            killCommand(lastSessionIdRef.current, activeJobIdRef.current);
-          }
+          if (isRunning) {
+            // SIGINT: kill the running backend process
+            if (activeJobIdRef.current && lastSessionIdRef.current) {
+              killCommand(lastSessionIdRef.current, activeJobIdRef.current);
+            }
 
-          if (wsCleanupRef.current) {
-            wsCleanupRef.current();
-            wsCleanupRef.current = null;
+            if (wsCleanupRef.current) {
+              wsCleanupRef.current();
+              wsCleanupRef.current = null;
+            }
+            setIsRunning(false);
+            activeJobIdRef.current = null;
+            setHistory((prev) => [...prev, { type: "error", content: "^C — cancelled" }]);
+          } else {
+            // Reset: clear the current input line and show ^C
+            const currentInput = input;
+            setHistory((prev) => [...prev, { type: "command", content: currentInput + "^C", cwd: getShortPath(cwd) }]);
+            setInput("");
           }
-          setIsRunning(false);
-          activeJobIdRef.current = null;
-          setHistory((prev) => [...prev, { type: "error", content: "^C — cancelled" }]);
-        } else {
-          // Reset: clear the current input line and show ^C
-          const currentInput = input;
-          setHistory((prev) => [...prev, { type: "command", content: currentInput + "^C", cwd: getShortPath(cwd) }]);
-          setInput("");
         }
       }
     },
-    [input, historyIndex, commandHistory, handleExecute, isRunning],
+    [input, historyIndex, commandHistory, handleExecute, isRunning, getShortPath, cwd],
   );
 
   const handleTerminalClick = useCallback(
