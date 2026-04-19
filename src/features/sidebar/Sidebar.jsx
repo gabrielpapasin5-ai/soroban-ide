@@ -20,7 +20,7 @@ const ActionButton = memo(({ icon, onClick, title }) => (
 /**
  * Sidebar component — contains file explorer, resize, collapse.
  */
-const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onNodeSelect, selectedNodeId, onNewFile, onNewFolder, onDeleteItem, onRenameItem, onMoveItem, onUploadFiles, onCopyItem, onCutItem, onPasteItem, clipboard, onCollapseAll, activeFileId, lastSessionId, setTreeData, treeData, fileContents, isSettingsOpen, onToggleSettings }) => {
+const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onNodeSelect, selectedNodeId, onNewFile, onNewFolder, onDeleteItem, onRenameItem, onMoveItem, onUploadFiles, onCopyItem, onCutItem, onPasteItem, clipboard, onCollapseAll, activeFileId, lastSessionId, setTreeData, treeData, fileContents, isSettingsOpen, onToggleSettings, onConfirm }) => {
   const root = tree?.[0];
   const persistedSidebarState = useMemo(() => loadState()?.sidebar, []);
 
@@ -617,7 +617,7 @@ const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onN
         {/* Collapsible Panel Section (Right of Activity Bar) */}
         <div className={`sidebar-panel ${isCollapsed ? "hidden" : ""}`}>
           {activePanel === "github" ? (
-            <GitHubPanel treeData={treeData || tree} fileContents={fileContents || {}} />
+            <GitHubPanel treeData={treeData || tree} fileContents={fileContents || {}} onConfirm={onConfirm} />
           ) : root ? (
             <>
               <div className="sidebar-header">

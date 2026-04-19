@@ -193,18 +193,20 @@ const isBinaryFile = (filename) => {
  */
 const formatGithubError = (data, defaultMsg) => {
   if (!data) return defaultMsg;
-  
+
   if (data.errors && Array.isArray(data.errors)) {
-    const details = data.errors.map(err => {
-      if (typeof err === "string") return err;
-      if (err.message) return err.message;
-      if (err.field) return `${err.field} ${err.code || "invalid"}`;
-      return JSON.stringify(err);
-    }).join(", ");
-    
+    const details = data.errors
+      .map((err) => {
+        if (typeof err === "string") return err;
+        if (err.message) return err.message;
+        if (err.field) return `${err.field} ${err.code || "invalid"}`;
+        return JSON.stringify(err);
+      })
+      .join(", ");
+
     if (details) return details;
   }
-  
+
   return data.message || defaultMsg;
 };
 
@@ -213,7 +215,7 @@ const formatGithubError = (data, defaultMsg) => {
 /**
  * Push all workspace files to a GitHub repo using the Git Trees API.
  */
-export const pushFilesToRepo = async (token, owner, repo, files, message = "Push from Soroban Studio", onProgress, branch = "main") => {
+export const pushFilesToRepo = async (token, owner, repo, files, message = "Push from soroban studio | https://soroban.studio", onProgress, branch = "main", force = false) => {
   const headers = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -230,17 +232,17 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
   try {
     console.log(`[GitHub Service] Checking state for branch '${branch}' in ${owner}/${repo}...`);
     let refRes = await fetch(`${apiBase}/git/ref/heads/${branch}`, { headers });
-    
+
     if (refRes.status === 409 || refRes.status === 404) {
-      // 409 = Git Repository is empty (no commits yet). 
+      // 409 = Git Repository is empty (no commits yet).
       // WE MUST SEED IT using the Contents API first because Git Data API fails on empty repos.
       console.log(`[GitHub Service] Repository is truly empty. Seeding initial commit...`);
-      
+
       const filePaths = Object.keys(files);
       if (filePaths.length === 0) throw new Error("No files to push.");
-      
+
       // Pick a file to seed (e.g. .gitignore or the first file found)
-      const seedPath = filePaths.find(p => p.includes('.gitignore')) || filePaths[0];
+      const seedPath = filePaths.find((p) => p.includes(".gitignore")) || filePaths[0];
       const seedContent = files[seedPath];
       const isBinary = isBinaryFile(seedPath);
 
@@ -251,15 +253,15 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
         body: JSON.stringify({
           message: "Initial seed commit",
           content: isBinary ? seedContent : btoa(seedContent),
-          branch: branch
-        })
+          branch: branch,
+        }),
       });
 
       if (!seedRes.ok) {
         const seedError = await seedRes.json().catch(() => ({}));
         throw new Error(`Failed to seed empty repository: ${formatGithubError(seedError, seedRes.status)}`);
       }
-      
+
       console.log(`[GitHub Service] Repository seeded successfully. Refreshing state...`);
       // Refresh ref status after seeding
       refRes = await fetch(`${apiBase}/git/ref/heads/${branch}`, { headers });
@@ -376,7 +378,7 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
     const updateRes = await fetch(`${apiBase}/git/refs/heads/${branch}`, {
       method: "PATCH",
       headers,
-      body: JSON.stringify({ sha: commitData.sha }),
+      body: JSON.stringify({ sha: commitData.sha, force }),
     });
     if (!updateRes.ok) {
       const errorData = await updateRes.json().catch(() => ({}));
@@ -403,7 +405,7 @@ export const pushFilesToRepo = async (token, owner, repo, files, message = "Push
         const patchRes = await fetch(`${apiBase}/git/refs/heads/${branch}`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ sha: commitData.sha }),
+          body: JSON.stringify({ sha: commitData.sha, force }),
         });
         if (!patchRes.ok) {
           throw new Error(`Failed to update branch '${branch}' (Status: ${patchRes.status})`);

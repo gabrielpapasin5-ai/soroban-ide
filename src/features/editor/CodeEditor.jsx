@@ -44,12 +44,12 @@ const CodeEditor = ({ fileId, filePath, content, language, theme, onChange, onCu
         folding: true,
         foldingHighlight: true,
         showFoldingControls: "mouseover",
-        bracketPairColorization: { enabled: true },
+        bracketPairColorization: { enabled: false },
         guides: {
-          bracketPairs: true,
-          bracketPairsHorizontal: true,
-          highlightActiveBracketPair: true,
-          highlightActiveIndentation: true,
+          bracketPairs: false,
+          bracketPairsHorizontal: false,
+          highlightActiveBracketPair: false,
+          highlightActiveIndentation: false,
         },
         autoIndent: "full",
         formatOnPaste: true,
@@ -145,9 +145,7 @@ const CodeEditor = ({ fileId, filePath, content, language, theme, onChange, onCu
   // Handle Theme changes
   useEffect(() => {
     if (!theme) return;
-    const monacoTheme = 
-      theme === "light" ? "vs" : 
-      "community-material";
+    const monacoTheme = theme === "light" ? "vs" : "community-material";
     monaco.editor.setTheme(monacoTheme);
   }, [theme]);
 

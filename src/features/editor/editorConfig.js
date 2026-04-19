@@ -149,6 +149,7 @@ export const configureMonaco = () => {
 
   // TOML language
   monaco.languages.register({ id: "toml" });
+
   monaco.languages.setLanguageConfiguration("toml", {
     comments: { lineComment: "#" },
     brackets: [
@@ -161,6 +162,43 @@ export const configureMonaco = () => {
       { open: '"', close: '"' },
       { open: "'", close: "'" },
     ],
+  });
+
+  monaco.languages.setMonarchTokensProvider("toml", {
+    defaultToken: "",
+    tokenPostfix: ".toml",
+    tokenizer: {
+      root: [
+        { include: "@whitespace" },
+        [/#.*$/, "comment"],
+        [/\[[^\]]+\]/, "keyword"],
+        [/[a-zA-Z_][-a-zA-Z0-9_]*/, {
+          cases: {
+            "true|false": "keyword",
+            "@default": "variable"
+          }
+        }],
+        [/=/, "operator"],
+        [/"/, { token: "string.quote", bracket: "@open", next: "@string" }],
+        [/'/, { token: "string.quote", bracket: "@open", next: "@string_single" }],
+        [/[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/, "number"],
+        [/[+-]?(?:inf|nan)/, "number"],
+        [/\d{4}-\d{2}-\d{2}/, "number"],
+      ],
+      string: [
+        [/[^\\"]+/, "string"],
+        [/\\./, "string.escape"],
+        [/"/, { token: "string.quote", bracket: "@close", next: "@pop" }],
+      ],
+      string_single: [
+        [/[^\\']+/, "string"],
+        [/\\./, "string.escape"],
+        [/'/, { token: "string.quote", bracket: "@close", next: "@pop" }],
+      ],
+      whitespace: [
+        [/[ \t\r\n]+/, "white"],
+      ],
+    },
   });
 
   // Rust completions

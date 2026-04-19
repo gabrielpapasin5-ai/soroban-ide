@@ -37,6 +37,12 @@ const Layout = () => {
   const initializationStartedRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "Confirm Action",
+    message: "",
+    onConfirm: null,
+  });
   const createMenuRef = useRef(null);
   const setFileContentsRef = useRef(workspace.setFileContents);
   const previewTabIdRef = useRef(tabManager.previewTabId);
@@ -177,34 +183,48 @@ const Layout = () => {
 
   // Create project handlers
   const handleCreateProject = useCallback(
-    async (templateName = "hello-world") => {
-      try {
-        setIsCreatingProject(true);
-
-        // Reset session to ensure a clean workspace on the backend
-        resetSessionId();
-
-        // Reset state for a fresh start
-        tabManager.resetTabs();
-
-        // Initialize locally using the specified template from BACKEND filesystem
-        console.log(`[Layout] Fetching ${templateName} template from backend filesystem...`);
+    async (templateName = "hello-world", skipConfirm = false) => {
+      const execute = async () => {
         try {
-          const { tree, contents } = await fetchTemplate(templateName);
-          workspace.setTreeData(tree);
-          workspace.setFileContents(contents);
-        } catch (templateError) {
-          console.error(`Failed to fetch ${templateName} template from backend, falling back to local blank project:`, templateError);
-          const { tree, contents } = createBlankWorkspace();
-          workspace.setTreeData(tree);
-          workspace.setFileContents(contents);
-        }
+          setIsCreatingProject(true);
 
-        setIsCreatingProject(false);
-      } catch (error) {
-        console.error("Failed to create project:", error);
-        setIsCreatingProject(false);
+          // Reset session to ensure a clean workspace on the backend
+          resetSessionId();
+
+          // Reset state for a fresh start
+          tabManager.resetTabs();
+
+          // Initialize locally using the specified template from BACKEND filesystem
+          console.log(`[Layout] Fetching ${templateName} template from backend filesystem...`);
+          try {
+            const { tree, contents } = await fetchTemplate(templateName);
+            workspace.setTreeData(tree);
+            workspace.setFileContents(contents);
+          } catch (templateError) {
+            console.error(`Failed to fetch ${templateName} template from backend, falling back to local blank project:`, templateError);
+            const { tree, contents } = createBlankWorkspace();
+            workspace.setTreeData(tree);
+            workspace.setFileContents(contents);
+          }
+
+          setIsCreatingProject(false);
+        } catch (error) {
+          console.error("Failed to create project:", error);
+          setIsCreatingProject(false);
+        }
+      };
+
+      if (!skipConfirm) {
+        setConfirmModal({
+          isOpen: true,
+          title: "Confirm New Project",
+          message: "Are you sure you want to create a new project? This will replace your current workspace files.",
+          onConfirm: execute,
+        });
+        return;
       }
+
+      await execute();
     },
     [workspace, tabManager],
   );
@@ -221,7 +241,7 @@ const Layout = () => {
     const state = loadState();
     if (!state?.workspace) {
       initializationStartedRef.current = true;
-      handleCreateProject("hello-world");
+      handleCreateProject("hello-world", true);
     }
   }, [handleCreateProject]);
 
@@ -234,21 +254,32 @@ const Layout = () => {
 
   const handleCloneGithub = useCallback(async () => {
     if (!githubUrl.trim()) return;
-    setCloneStatus({ type: "loading", message: "Fetching repository from GitHub..." });
 
-    try {
-      await workspace.cloneFromGithub(githubUrl);
-      tabManager.resetTabs();
-      setCloneStatus({ type: "success", message: "Repository cloned successfully!" });
-      setTimeout(() => {
-        setShowGithubClone(false);
-        setCloneStatus(null);
-        setGithubUrl("");
-      }, 1500);
-    } catch (err) {
-      setCloneStatus({ type: "error", message: err.message || "Failed to clone repository" });
-    }
+    const execute = async () => {
+      setCloneStatus({ type: "loading", message: "Fetching repository from GitHub..." });
+
+      try {
+        await workspace.cloneFromGithub(githubUrl);
+        tabManager.resetTabs();
+        setCloneStatus({ type: "success", message: "Repository cloned successfully!" });
+        setTimeout(() => {
+          setShowGithubClone(false);
+          setCloneStatus(null);
+          setGithubUrl("");
+        }, 1500);
+      } catch (err) {
+        setCloneStatus({ type: "error", message: err.message || "Failed to clone repository" });
+      }
+    };
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirm Clone",
+      message: "Are you sure you want to clone this repository? This will replace your current workspace files.",
+      onConfirm: execute,
+    });
   }, [githubUrl, workspace, tabManager]);
+
 
   return (
     <div className="app-shell">
@@ -285,6 +316,7 @@ const Layout = () => {
               fileContents={workspace.fileContents}
               isSettingsOpen={isSettingsOpen}
               onToggleSettings={() => setIsSettingsOpen(!isSettingsOpen)}
+              onConfirm={setConfirmModal}
             />
 
             {/* Project Creation Loading Overlay - Glass Blur */}
@@ -369,33 +401,51 @@ const Layout = () => {
         </div>
       </div>
 
-      {showGithubClone && (
-        <div className="github-clone-overlay">
-          <div className="github-clone-dialog">
-            <h3>Clone GitHub Repository</h3>
-            <input
-              type="text"
-              placeholder="https://github.com/username/repository.git"
-              value={githubUrl}
-              onChange={(e) => {
-                setGithubUrl(e.target.value);
-                if (cloneStatus?.type === "error") setCloneStatus(null);
-              }}
-              onKeyDown={(e) => e.key === "Enter" && handleCloneGithub()}
-              autoFocus
-            />
-            {cloneStatus && <div className={`clone-status ${cloneStatus.type}`}>{cloneStatus.message}</div>}
-            <div className="dialog-buttons">
-              <button className="btn btn-secondary" onClick={() => setShowGithubClone(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" onClick={handleCloneGithub} disabled={cloneStatus?.type === "loading"}>
-                Clone
-              </button>
-            </div>
+      <div className={`github-clone-overlay ${showGithubClone ? "visible" : ""}`}>
+        <div className="github-clone-dialog">
+          <h3>Clone GitHub Repository</h3>
+          <input
+            type="text"
+            placeholder="https://github.com/username/repository.git"
+            value={githubUrl}
+            onChange={(e) => {
+              setGithubUrl(e.target.value);
+              if (cloneStatus?.type === "error") setCloneStatus(null);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleCloneGithub()}
+            autoFocus
+          />
+          {cloneStatus && <div className={`clone-status ${cloneStatus.type}`}>{cloneStatus.message}</div>}
+          <div className="dialog-buttons">
+            <button className="btn btn-secondary" onClick={() => setShowGithubClone(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleCloneGithub} disabled={cloneStatus?.type === "loading"}>
+              Clone
+            </button>
           </div>
         </div>
-      )}
+      </div>
+
+      <div className={`github-clone-overlay ${confirmModal.isOpen ? "visible" : ""}`}>
+        <div className="github-clone-dialog">
+          <h3>{confirmModal.title}</h3>
+          <p className="confirmation-message">{confirmModal.message}</p>
+          <div className="dialog-buttons">
+            <button className="btn btn-secondary" onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                confirmModal.onConfirm?.();
+                setConfirmModal({ ...confirmModal, isOpen: false });
+              }}>
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

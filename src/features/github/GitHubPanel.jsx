@@ -1,23 +1,12 @@
 import React, { memo, useState, useCallback, useEffect, useRef } from "react";
-import {
-  getStoredToken,
-  getStoredUser,
-  storeAuth,
-  clearAuth,
-  initiateDeviceFlow,
-  pollForToken,
-  getUserInfo,
-  listUserRepos,
-  createRepository,
-  pushFilesToRepo,
-} from "../../services/githubAuthService";
+import { getStoredToken, getStoredUser, storeAuth, clearAuth, initiateDeviceFlow, pollForToken, getUserInfo, listUserRepos, createRepository, pushFilesToRepo } from "../../services/githubAuthService";
 import { collectProjectFiles } from "../../services/backendService";
 
 /**
  * GitHub Panel — replaces the file explorer in the sidebar.
  * Handles OAuth Device Flow login, repo creation, and pushing files.
  */
-const GitHubPanel = memo(({ treeData, fileContents }) => {
+const GitHubPanel = memo(({ treeData, fileContents, onConfirm }) => {
   // Auth state
   const [token, setToken] = useState(() => getStoredToken());
   const [user, setUser] = useState(() => getStoredUser());
@@ -80,11 +69,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
 
       // Start polling for token
       abortRef.current = new AbortController();
-      const accessToken = await pollForToken(
-        data.device_code,
-        data.interval,
-        abortRef.current.signal
-      );
+      const accessToken = await pollForToken(data.device_code, data.interval, abortRef.current.signal);
 
       // Got token! Fetch user info
       const userData = await getUserInfo(accessToken);
@@ -148,73 +133,92 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
 
   const handleCreateRepo = useCallback(async () => {
     if (!newRepoName.trim() || !token) return;
-    setIsPushing(true);
-    setPushError(null);
-    setPushResult(null);
-    setPushProgress({ step: 0, total: 6, detail: "Creating repository..." });
 
-    try {
-      const repo = await createRepository(token, newRepoName.trim(), false, newRepoDesc.trim());
-      setPushProgress({ step: 1, total: 6, detail: "Repository created! Pushing files..." });
-
-      const files = collectProjectFiles(treeData, fileContents, { includeAll: true });
-      const result = await pushFilesToRepo(
-        token,
-        repo.owner.login,
-        repo.name,
-        files,
-        "Initial commit from Soroban Studio",
-        (step, total, detail) => setPushProgress({ step: step + 1, total: total + 1, detail }),
-        repo.default_branch || "main"
-      );
-
-      setPushResult({ ...result, repoUrl: `https://github.com/${repo.full_name}` });
-      setNewRepoName("");
-      setNewRepoDesc("");
-    } catch (err) {
-      setPushError(err.message);
-    } finally {
-      setIsPushing(false);
-      setPushProgress(null);
-    }
-  }, [token, newRepoName, newRepoDesc, treeData, fileContents]);
-
-  const handlePushToExisting = useCallback(
-    async (repo) => {
-      if (!token) return;
+    const execute = async () => {
       setIsPushing(true);
       setPushError(null);
       setPushResult(null);
-      setPushProgress({ step: 0, total: 5, detail: "Collecting files..." });
+      setPushProgress({ step: 0, total: 6, detail: "Creating repository..." });
 
       try {
-        const files = collectProjectFiles(treeData, fileContents, { includeAll: true });
-        const result = await pushFilesToRepo(
-          token,
-          repo.owner.login,
-          repo.name,
-          files,
-          "Update from Soroban Studio",
-          (step, total, detail) => setPushProgress({ step, total, detail }),
-          repo.default_branch || "main"
-        );
+        const repo = await createRepository(token, newRepoName.trim(), false, newRepoDesc.trim());
+        setPushProgress({ step: 1, total: 6, detail: "Repository created! Pushing files..." });
 
-        setPushResult(result);
+        const files = collectProjectFiles(treeData, fileContents, { includeAll: true });
+        const result = await pushFilesToRepo(token, repo.owner.login, repo.name, files, "Initial commit from soroban studio | https://soroban.studio", (step, total, detail) => setPushProgress({ step: step + 1, total: total + 1, detail }), repo.default_branch || "main");
+
+        setPushResult({ ...result, repoUrl: `https://github.com/${repo.full_name}` });
+        setNewRepoName("");
+        setNewRepoDesc("");
       } catch (err) {
         setPushError(err.message);
       } finally {
         setIsPushing(false);
         setPushProgress(null);
       }
+    };
+
+    if (onConfirm) {
+      onConfirm({
+        isOpen: true,
+        title: "Confirm Create & Push",
+        message: `Create repository "${newRepoName}" and push project files? This will initialize the repository and perform an initial commit.`,
+        onConfirm: execute,
+      });
+    } else {
+      await execute();
+    }
+  }, [token, newRepoName, newRepoDesc, treeData, fileContents, onConfirm]);
+
+  const handlePushToExisting = useCallback(
+    async (repo) => {
+      if (!token) return;
+
+      const execute = async () => {
+        setIsPushing(true);
+        setPushError(null);
+        setPushResult(null);
+        setPushProgress({ step: 0, total: 5, detail: "Collecting files..." });
+
+        try {
+          const files = collectProjectFiles(treeData, fileContents, { includeAll: true });
+          const result = await pushFilesToRepo(
+            token,
+            repo.owner.login,
+            repo.name,
+            files,
+            "Update from soroban studio | https://soroban.studio",
+            (step, total, detail) => setPushProgress({ step, total, detail }),
+            repo.default_branch || "main",
+            true, // force push
+          );
+
+          setPushResult(result);
+        } catch (err) {
+          setPushError(err.message);
+        } finally {
+          setIsPushing(false);
+          setPushProgress(null);
+        }
+      };
+
+      if (onConfirm) {
+        onConfirm({
+          isOpen: true,
+          title: "Confirm Push",
+          message: `Push project files to "${repo.full_name}"? This will overwrite existing files on GitHub to match your current workspace.`,
+          onConfirm: execute,
+        });
+      } else {
+        await execute();
+      }
     },
-    [token, treeData, fileContents]
+    [token, treeData, fileContents, onConfirm],
   );
 
   // ─── Filtered repos ─────────────────────────────────────────
 
-  const filteredRepos = repos.filter((r) =>
-    r.full_name.toLowerCase().includes(repoSearch.toLowerCase())
-  );
+  const filteredRepos = repos.filter((r) => r.full_name.toLowerCase().includes(repoSearch.toLowerCase()));
 
   // ─── Render Helpers ─────────────────────────────────────────
 
@@ -236,9 +240,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
           <div className="github-login-section">
             {renderGithubIcon()}
             <h3 className="github-login-title">Connect to GitHub</h3>
-            <p className="github-login-desc">
-              Sign in to push your Soroban project to GitHub
-            </p>
+            <p className="github-login-desc">Sign in to push your Soroban project to GitHub</p>
 
             {!isLoggingIn ? (
               <button className="btn btn-primary" onClick={handleLogin}>
@@ -247,20 +249,14 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
               </button>
             ) : deviceFlowData ? (
               <div className="github-device-flow">
-                <p className="github-device-instruction">
-                  Enter this code on GitHub:
-                </p>
+                <p className="github-device-instruction">Enter this code on GitHub:</p>
                 <div className="github-device-code" onClick={handleCopyCode} title="Click to copy">
                   {deviceFlowData.user_code}
                   {copied && <span className="github-code-tooltip">Copied!</span>}
                 </div>
                 <p className="github-device-hint">
                   A new tab has been opened. If not,{" "}
-                  <a
-                    href={deviceFlowData.verification_uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <a href={deviceFlowData.verification_uri} target="_blank" rel="noopener noreferrer">
                     click here
                   </a>
                 </p>
@@ -306,13 +302,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
       <div className="github-panel-body">
         {/* User info */}
         <div className="github-user-card">
-          <img
-            className="github-avatar"
-            src={user.avatar_url}
-            alt={user.login}
-            width="32"
-            height="32"
-          />
+          <img className="github-avatar" src={user.avatar_url} alt={user.login} width="32" height="32" />
           <div className="github-user-info">
             <span className="github-username">{user.login}</span>
             <span className="github-user-sub">Connected</span>
@@ -327,12 +317,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
             </svg>
             <div>
               <p className="github-success-text">Pushed successfully!</p>
-              <a
-                href={pushResult.repoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="github-success-link"
-              >
+              <a href={pushResult.repoUrl} target="_blank" rel="noopener noreferrer" className="github-success-link">
                 Open on GitHub →
               </a>
             </div>
@@ -343,10 +328,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
         {isPushing && pushProgress && (
           <div className="github-progress-card">
             <div className="github-progress-bar">
-              <div
-                className="github-progress-fill"
-                style={{ width: `${(pushProgress.step / pushProgress.total) * 100}%` }}
-              />
+              <div className="github-progress-fill" style={{ width: `${(pushProgress.step / pushProgress.total) * 100}%` }} />
             </div>
             <span className="github-progress-text">{pushProgress.detail}</span>
           </div>
@@ -362,8 +344,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
                 setActiveView("create");
                 setPushResult(null);
                 setPushError(null);
-              }}
-            >
+              }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
@@ -398,8 +379,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
                 setPushError(null);
                 setPushResult(null);
               }}
-              style={{ padding: "0", marginBottom: "8px" }}
-            >
+              style={{ padding: "0", marginBottom: "8px" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
@@ -410,34 +390,15 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
 
             <div className="github-form-group">
               <label className="github-form-label">Repository Name</label>
-              <input
-                className="github-form-input"
-                type="text"
-                value={newRepoName}
-                onChange={(e) => setNewRepoName(e.target.value.replace(/\s+/g, ""))}
-                placeholder="my-soroban-project"
-                autoFocus
-              />
+              <input className="github-form-input" type="text" value={newRepoName} onChange={(e) => setNewRepoName(e.target.value.replace(/\s+/g, ""))} placeholder="my-soroban-project" autoFocus />
             </div>
 
             <div className="github-form-group">
               <label className="github-form-label">Description (optional)</label>
-              <input
-                className="github-form-input"
-                type="text"
-                value={newRepoDesc}
-                onChange={(e) => setNewRepoDesc(e.target.value)}
-                placeholder="A Soroban smart contract"
-              />
+              <input className="github-form-input" type="text" value={newRepoDesc} onChange={(e) => setNewRepoDesc(e.target.value)} placeholder="A Soroban smart contract" />
             </div>
 
-
-            <button
-              className="btn btn-primary btn-block btn-lg"
-              disabled={!newRepoName.trim()}
-              onClick={handleCreateRepo}
-              style={{ marginTop: "8px" }}
-            >
+            <button className="btn btn-primary btn-block btn-lg" disabled={!newRepoName.trim()} onClick={handleCreateRepo} style={{ marginTop: "8px" }}>
               Create & Push
             </button>
           </div>
@@ -453,8 +414,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
                 setPushError(null);
                 setPushResult(null);
               }}
-              style={{ padding: "0", marginBottom: "8px" }}
-            >
+              style={{ padding: "0", marginBottom: "8px" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
@@ -463,13 +423,7 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
 
             {pushError && <div className="github-error">{pushError}</div>}
 
-            <input
-              className="github-form-input github-search-input"
-              type="text"
-              value={repoSearch}
-              onChange={(e) => setRepoSearch(e.target.value)}
-              placeholder="Search repositories..."
-            />
+            <input className="github-form-input github-search-input" type="text" value={repoSearch} onChange={(e) => setRepoSearch(e.target.value)} placeholder="Search repositories..." />
 
             {reposLoading ? (
               <div className="github-waiting-indicator">
@@ -479,28 +433,20 @@ const GitHubPanel = memo(({ treeData, fileContents }) => {
             ) : (
               <div className="github-repo-list">
                 {filteredRepos.map((repo) => (
-                  <button
-                    key={repo.id}
-                    className="github-repo-item"
-                    onClick={() => handlePushToExisting(repo)}
-                  >
+                  <button key={repo.id} className="github-repo-item" onClick={() => handlePushToExisting(repo)}>
                     <div className="github-repo-info">
                       <span className="github-repo-name">{repo.name}</span>
                       <span className="github-repo-owner">{repo.full_name}</span>
                     </div>
                     <div className="github-repo-meta">
-                      {repo.private && (
-                        <span className="github-repo-badge private">Private</span>
-                      )}
+                      {repo.private && <span className="github-repo-badge private">Private</span>}
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="9 18 15 12 9 6" />
                       </svg>
                     </div>
                   </button>
                 ))}
-                {filteredRepos.length === 0 && !reposLoading && (
-                  <p className="github-empty-text">No repositories found</p>
-                )}
+                {filteredRepos.length === 0 && !reposLoading && <p className="github-empty-text">No repositories found</p>}
               </div>
             )}
           </div>
