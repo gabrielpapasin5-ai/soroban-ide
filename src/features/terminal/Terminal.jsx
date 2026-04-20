@@ -246,6 +246,18 @@ const Terminal = memo(({ activeFileName, currentDirectory = "~/project", treeDat
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, [toggleCollapse]);
 
+  // External command bus — allows the Command Palette to toggle / clear the terminal.
+  useEffect(() => {
+    const handleToggle = () => toggleCollapse();
+    const handleClear = () => setHistory([]);
+    window.addEventListener("soroban:toggleTerminal", handleToggle);
+    window.addEventListener("soroban:clearTerminal", handleClear);
+    return () => {
+      window.removeEventListener("soroban:toggleTerminal", handleToggle);
+      window.removeEventListener("soroban:clearTerminal", handleClear);
+    };
+  }, [toggleCollapse]);
+
   /* ─── Keyboard handling ─── */
 
   const handleKeyDown = useCallback(

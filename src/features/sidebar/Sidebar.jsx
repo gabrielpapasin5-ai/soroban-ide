@@ -224,6 +224,53 @@ const Sidebar = memo(({ tree, expandedFolders, onToggleFolder, onFileSelect, onN
 
   const handleInlineCancel = useCallback(() => setInlineInput(null), []);
 
+  // External command bus — lets the Command Palette drive the sidebar.
+  useEffect(() => {
+    const ensureExplorerVisible = () => {
+      if (isCollapsed) {
+        setIsCollapsed(false);
+        setWidth(Math.max(340, lastWidth.current));
+      }
+      setActivePanel("explorer");
+    };
+
+    const handleToggle = () => toggleCollapse();
+    const handleSetPanel = (e) => {
+      const panel = e.detail?.panel;
+      if (!panel) return;
+      if (isCollapsed) {
+        setIsCollapsed(false);
+        setWidth(Math.max(panel === "tutorial" ? 420 : 340, lastWidth.current));
+      }
+      setActivePanel(panel);
+    };
+    const handleStartNewFileEvt = () => {
+      ensureExplorerVisible();
+      setTimeout(() => handleStartNewFile(), 0);
+    };
+    const handleStartNewFolderEvt = () => {
+      ensureExplorerVisible();
+      setTimeout(() => handleStartNewFolder(), 0);
+    };
+    const handleUploadEvt = () => {
+      ensureExplorerVisible();
+      setTimeout(() => fileInputRef.current?.click(), 0);
+    };
+
+    window.addEventListener("soroban:toggleSidebar", handleToggle);
+    window.addEventListener("soroban:setSidebarPanel", handleSetPanel);
+    window.addEventListener("soroban:startNewFile", handleStartNewFileEvt);
+    window.addEventListener("soroban:startNewFolder", handleStartNewFolderEvt);
+    window.addEventListener("soroban:uploadFiles", handleUploadEvt);
+    return () => {
+      window.removeEventListener("soroban:toggleSidebar", handleToggle);
+      window.removeEventListener("soroban:setSidebarPanel", handleSetPanel);
+      window.removeEventListener("soroban:startNewFile", handleStartNewFileEvt);
+      window.removeEventListener("soroban:startNewFolder", handleStartNewFolderEvt);
+      window.removeEventListener("soroban:uploadFiles", handleUploadEvt);
+    };
+  }, [toggleCollapse, isCollapsed, handleStartNewFile, handleStartNewFolder]);
+
   /* ─── Context menu handlers ─── */
 
   // Helper function to get node path

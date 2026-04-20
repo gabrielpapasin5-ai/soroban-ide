@@ -16,6 +16,7 @@ import Terminal from "../features/terminal/Terminal";
 import { getLanguageFromName, getLanguageDisplayName } from "../features/editor/editorUtils";
 import { cloneNodeWithNewIds, addNodeToTree, moveNodeInTree } from "../features/workspace/workspaceUtils";
 import SettingsPanel from "../features/settings/SettingsPanel";
+import CommandPalette from "../features/palette/CommandPalette";
 import "../styles/settings.css";
 
 /**
@@ -37,6 +38,7 @@ const Layout = () => {
   const initializationStartedRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  const [palette, setPalette] = useState({ isOpen: false, mode: "command" });
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: "Confirm Action",
@@ -280,6 +282,203 @@ const Layout = () => {
     });
   }, [githubUrl, workspace, tabManager]);
 
+  /* ─── Command Palette ─── */
+
+  const openPalette = useCallback((mode = "command") => {
+    setPalette({ isOpen: true, mode });
+  }, []);
+  const closePalette = useCallback(() => {
+    setPalette((p) => ({ ...p, isOpen: false }));
+  }, []);
+
+  const paletteFiles = useMemo(() => {
+    const list = [];
+    for (const node of workspace.flattenedNodes.values()) {
+      if (node.type === "file") {
+        list.push({ id: node.id, name: node.name, path: node.path });
+      }
+    }
+    list.sort((a, b) => (a.path || "").localeCompare(b.path || "", undefined, { sensitivity: "base" }));
+    return list;
+  }, [workspace.flattenedNodes]);
+
+  const handleCloseAllTabs = useCallback(() => {
+    [...tabManager.tabs].forEach((id) => tabManager.closeTab(id));
+  }, [tabManager]);
+
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || "");
+  const modKey = isMac ? "⌘" : "Ctrl";
+
+  const paletteCommands = useMemo(() => {
+    const dispatch = (name, detail) =>
+      window.dispatchEvent(new CustomEvent(name, detail ? { detail } : undefined));
+
+    return [
+      {
+        id: "file.quickOpen",
+        title: "Go to File…",
+        category: "File",
+        shortcut: `${modKey}+P`,
+        run: () => openPalette("file"),
+      },
+      {
+        id: "file.newFile",
+        title: "New File",
+        category: "File",
+        run: () => dispatch("soroban:startNewFile"),
+      },
+      {
+        id: "file.newFolder",
+        title: "New Folder",
+        category: "File",
+        run: () => dispatch("soroban:startNewFolder"),
+      },
+      {
+        id: "file.uploadFiles",
+        title: "Upload Files…",
+        category: "File",
+        run: () => dispatch("soroban:uploadFiles"),
+      },
+      {
+        id: "project.createHelloWorld",
+        title: "Create Hello World Project",
+        category: "Project",
+        run: () => handleCreateProject("hello-world"),
+      },
+      {
+        id: "project.createWorkshop",
+        title: "Create Workshop Template",
+        category: "Project",
+        run: () => handleCreateProject("stellar-workshop"),
+      },
+      {
+        id: "project.cloneGithub",
+        title: "Clone from GitHub…",
+        category: "Project",
+        run: handleOpenGithubClone,
+      },
+      {
+        id: "view.toggleSidebar",
+        title: "Toggle Sidebar",
+        category: "View",
+        shortcut: `${modKey}+B`,
+        run: () => dispatch("soroban:toggleSidebar"),
+      },
+      {
+        id: "view.toggleTerminal",
+        title: "Toggle Terminal",
+        category: "View",
+        shortcut: `${modKey}+J`,
+        run: () => dispatch("soroban:toggleTerminal"),
+      },
+      {
+        id: "view.showExplorer",
+        title: "Show Explorer",
+        category: "View",
+        run: () => {
+          if (isSettingsOpen) setIsSettingsOpen(false);
+          dispatch("soroban:setSidebarPanel", { panel: "explorer" });
+        },
+      },
+      {
+        id: "view.showGithub",
+        title: "Show GitHub Panel",
+        category: "View",
+        run: () => {
+          if (isSettingsOpen) setIsSettingsOpen(false);
+          dispatch("soroban:setSidebarPanel", { panel: "github" });
+        },
+      },
+      {
+        id: "view.showTutorials",
+        title: "Show Tutorials",
+        category: "View",
+        run: () => {
+          if (isSettingsOpen) setIsSettingsOpen(false);
+          dispatch("soroban:setSidebarPanel", { panel: "tutorial" });
+        },
+      },
+      {
+        id: "view.toggleSettings",
+        title: isSettingsOpen ? "Close Settings" : "Open Settings",
+        category: "View",
+        run: () => setIsSettingsOpen((v) => !v),
+      },
+      {
+        id: "terminal.clear",
+        title: "Clear Terminal",
+        category: "Terminal",
+        run: () => dispatch("soroban:clearTerminal"),
+      },
+      {
+        id: "workspace.collapseAll",
+        title: "Collapse All Folders",
+        category: "Workspace",
+        run: workspace.collapseAll,
+      },
+      {
+        id: "tabs.closeActive",
+        title: "Close Active Tab",
+        category: "Tabs",
+        shortcut: `${modKey}+W`,
+        run: () => tabManager.activeFileId && tabManager.closeTab(tabManager.activeFileId),
+      },
+      {
+        id: "tabs.closeAll",
+        title: "Close All Tabs",
+        category: "Tabs",
+        run: handleCloseAllTabs,
+      },
+      {
+        id: "theme.dark",
+        title: "Color Theme: Community Dark",
+        category: "Preferences",
+        run: () => setTheme("dark"),
+      },
+      {
+        id: "theme.light",
+        title: "Color Theme: Modern Light",
+        category: "Preferences",
+        run: () => setTheme("light"),
+      },
+    ];
+  }, [
+    openPalette,
+    handleCreateProject,
+    handleOpenGithubClone,
+    isSettingsOpen,
+    workspace.collapseAll,
+    tabManager,
+    handleCloseAllTabs,
+    modKey,
+  ]);
+
+  const handlePaletteOpenFile = useCallback(
+    (fileId) => {
+      tabManager.openFile(fileId);
+    },
+    [tabManager],
+  );
+
+  // Global palette shortcuts: Ctrl/Cmd+Shift+P → commands, Ctrl/Cmd+P → files
+  useEffect(() => {
+    const handler = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+
+      if (key === "p" && e.shiftKey) {
+        e.preventDefault();
+        openPalette("command");
+      } else if (key === "p" && !e.shiftKey) {
+        e.preventDefault();
+        openPalette("file");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [openPalette]);
+
 
   return (
     <div className="app-shell">
@@ -426,6 +625,15 @@ const Layout = () => {
           </div>
         </div>
       </div>
+
+      <CommandPalette
+        isOpen={palette.isOpen}
+        mode={palette.mode}
+        commands={paletteCommands}
+        files={paletteFiles}
+        onClose={closePalette}
+        onOpenFile={handlePaletteOpenFile}
+      />
 
       <div className={`github-clone-overlay ${confirmModal.isOpen ? "visible" : ""}`}>
         <div className="github-clone-dialog">
