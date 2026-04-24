@@ -39,7 +39,7 @@ const StatusBadge = ({ status }) => {
   return <span className={`deploy-badge ${s.cls}`}>{s.icon}{s.label}</span>;
 };
 
-const Section = ({ icon, title, children, defaultOpen = true, badge }) => {
+const Section = ({ icon, title, children, defaultOpen = false, badge }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="deploy-section">
@@ -573,7 +573,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
       </Section>
 
       {/* ── Deployed Contract ── */}
-      <Section icon={<CheckCircle size={14} />} title="Deployed Contract" defaultOpen={!!deployedContractId}>
+      <Section icon={<CheckCircle size={14} />} title="Deployed Contract">
         {deployedContractId ? (
           <>
             <div className="deploy-contract-id-row">
