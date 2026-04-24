@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
-import { Wallet, Hammer, Rocket, CheckCircle, AlertCircle, Loader, Copy, Check, Play, ChevronDown, ChevronRight } from "lucide-react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { Wallet, Hammer, Rocket, CheckCircle, AlertCircle, Loader, Copy, Check, Play, ChevronDown, ChevronRight, Folder, RefreshCw } from "lucide-react";
 import { useDeploy } from "../../context/DeployContext";
 import { useContract } from "../../context/ContractContext";
 import {
@@ -12,6 +12,14 @@ import {
   getSessionId,
 } from "../../services/backendService";
 import { signAndSubmitWithFreighter } from "../../services/freighter";
+import {
+  findContracts,
+  groupContracts,
+  resolveWasmPath,
+  manifestPathFlag,
+} from "./contractDiscovery";
+
+const CONTRACT_STORAGE_KEY = "soroban:selectedContract";
 
 // Dispatch a command to the Terminal panel
 const runInTerminal = (cmd, files, onDone, onContractId) => {
@@ -65,20 +73,41 @@ const DeployPanel = ({ treeData, fileContents }) => {
   const [invokingFn, setInvokingFn] = useState(null);
   const [showReplaceDialog, setShowReplaceDialog] = useState(false);
 
-  // Detect contract folder name
-  const contractFolderName = useCallback(() => {
-    const walk = (nodes) => {
-      for (const n of nodes) {
-        if (n.name === "contracts" && n.children) {
-          const first = n.children.find(c => c.type === "folder");
-          return first?.name || null;
-        }
-        if (n.children) { const r = walk(n.children); if (r) return r; }
-      }
-      return null;
-    };
-    return walk(treeData || []);
-  }, [treeData]);
+  // ─── Contract selector ───────────────────────────────────────────────────
+  // Scan the file tree for every folder that owns a Cargo.toml. The user
+  // picks which one the Compile/Deploy actions target.
+  const [rescanNonce, setRescanNonce] = useState(0);
+  const contracts = useMemo(
+    () => findContracts(treeData, fileContents),
+    // `rescanNonce` lets the user force a re-scan via the refresh button.
+    [treeData, fileContents, rescanNonce],
+  );
+  const groupedContracts = useMemo(() => groupContracts(contracts), [contracts]);
+
+  const [selectedPath, setSelectedPath] = useState(() => {
+    try { return localStorage.getItem(CONTRACT_STORAGE_KEY) || ""; }
+    catch { return ""; }
+  });
+
+  // Resolve the selected contract record from `contracts`. Fall back to the
+  // first available entry when the persisted path no longer matches (folder
+  // renamed, deleted, or workspace changed).
+  const selectedContract = useMemo(() => {
+    if (contracts.length === 0) return null;
+    return contracts.find((c) => c.path === selectedPath) || contracts[0];
+  }, [contracts, selectedPath]);
+
+  // Persist the resolved selection so the fallback sticks across reloads.
+  useEffect(() => {
+    if (!selectedContract) {
+      try { localStorage.removeItem(CONTRACT_STORAGE_KEY); } catch {}
+      return;
+    }
+    if (selectedContract.path !== selectedPath) {
+      setSelectedPath(selectedContract.path);
+    }
+    try { localStorage.setItem(CONTRACT_STORAGE_KEY, selectedContract.path); } catch {}
+  }, [selectedContract, selectedPath]);
 
   useEffect(() => {
     getDefaultWalletStatus().then(setDefaultWallet).catch(() => {});
@@ -95,12 +124,31 @@ const DeployPanel = ({ treeData, fileContents }) => {
       .catch(() => {});
   }, [walletAddress]);
 
-  const aliasEditedRef = React.useRef(false);
+  // Auto-suggest the alias from the selected contract's folder name. The
+  // user's manual edits take priority and also "lock" the field so switching
+  // contracts doesn't clobber their input.
+  const aliasEditedRef = useRef(false);
+  const lastAutoAliasRef = useRef("my-contract");
   useEffect(() => {
-    if (aliasEditedRef.current) return;
-    const name = contractFolderName();
-    if (name) setAlias(name);
-  }, [contractFolderName]);
+    if (!selectedContract) return;
+    const suggested = selectedContract.name;
+    if (!suggested) return;
+    // Overwrite the alias only if the user hasn't typed, or if the current
+    // value still matches the previous auto-suggestion.
+    if (!aliasEditedRef.current || alias === lastAutoAliasRef.current) {
+      setAlias(suggested);
+      lastAutoAliasRef.current = suggested;
+      aliasEditedRef.current = false;
+    }
+  }, [selectedContract]);
+
+  const handleSelectContract = useCallback((nextPath) => {
+    setSelectedPath(nextPath);
+  }, []);
+
+  const handleRescanContracts = useCallback(() => {
+    setRescanNonce((n) => n + 1);
+  }, []);
 
   // ─── Wallet ───────────────────────────────────────────────────────────────
 
@@ -120,9 +168,10 @@ const DeployPanel = ({ treeData, fileContents }) => {
   // ─── Compile → stream to Terminal ────────────────────────────────────────
 
   const handleCompile = useCallback(async () => {
+    if (!selectedContract) return;
     setCompileStatus("running");
     const files = collectProjectFiles(treeData, fileContents);
-    const cmd = "stellar contract build";
+    const cmd = `stellar contract build${manifestPathFlag(selectedContract)}`;
     try {
       const { sessionId, jobId } = await submitCommand(files, cmd);
       // Show in terminal
@@ -152,7 +201,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
         detail: { type: "error", content: err.message }
       }));
     }
-  }, [treeData, fileContents]);
+  }, [treeData, fileContents, selectedContract]);
 
   // ─── Deploy → stream to Terminal ─────────────────────────────────────────
 
@@ -166,10 +215,17 @@ const DeployPanel = ({ treeData, fileContents }) => {
   }, [compileStatus, deployedContractId]);
 
   const executeDeploy = useCallback(async () => {
+    if (!selectedContract) return;
     setDeployStatus("running");
     const files = collectProjectFiles(treeData, fileContents);
-    const contractName = (contractFolderName() || alias).replace(/-/g, "_");
-    const wasmPath = `/app/target/wasm32v1-none/release/${contractName}.wasm`;
+    const wasmPath = resolveWasmPath(selectedContract, fileContents);
+    if (!wasmPath) {
+      setDeployStatus("error");
+      window.dispatchEvent(new CustomEvent("soroban:terminalAppend", {
+        detail: { type: "error", content: "Could not resolve the compiled .wasm path for the selected contract. Build it first." }
+      }));
+      return;
+    }
     const useFreighter = sourceAccount === "freighter" && walletAddress;
     const sourceKey = useFreighter ? "freighter-wallet" : (defaultWallet?.name || "stellar-ide-default");
     const buildOnly = useFreighter ? " --build-only" : "";
@@ -248,7 +304,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
         detail: { type: "error", content: err.message }
       }));
     }
-  }, [treeData, fileContents, alias, sourceAccount, walletAddress, defaultWallet, contractFolderName]);
+  }, [treeData, fileContents, alias, sourceAccount, walletAddress, defaultWallet, selectedContract]);
 
   // ─── Invoke → stream to Terminal ─────────────────────────────────────────
 
@@ -399,7 +455,75 @@ const DeployPanel = ({ treeData, fileContents }) => {
 
       {/* ── Compile ── */}
       <Section icon={<Hammer size={14} />} title="Compile" badge={<StatusBadge status={compileStatus} />}>
-        <button className="deploy-btn deploy-btn-primary" onClick={handleCompile} disabled={compileStatus === "running"}>
+        <div className="deploy-form-group">
+          <div className="deploy-label-row">
+            <label className="deploy-label">Contract</label>
+            {contracts.length > 0 && (
+              <button
+                type="button"
+                className="deploy-icon-btn"
+                onClick={handleRescanContracts}
+                title="Re-scan workspace for Cargo.toml"
+                disabled={compileStatus === "running" || deployStatus === "running"}
+              >
+                <RefreshCw size={11} />
+              </button>
+            )}
+          </div>
+
+          {contracts.length === 0 ? (
+            <div className="deploy-contract-empty">
+              No <code>Cargo.toml</code> found in this workspace.
+            </div>
+          ) : contracts.length === 1 ? (
+            <div className="deploy-contract-pill" title={contracts[0].path || "(workspace root)"}>
+              <Folder size={12} />
+              <span className="deploy-contract-pill-name">{contracts[0].name}</span>
+              {contracts[0].path && contracts[0].path !== contracts[0].name && (
+                <span className="deploy-contract-pill-path">{contracts[0].path}</span>
+              )}
+            </div>
+          ) : (
+            <select
+              className="deploy-input"
+              value={selectedContract?.path ?? ""}
+              onChange={(e) => handleSelectContract(e.target.value)}
+              disabled={compileStatus === "running" || deployStatus === "running"}
+            >
+              {groupedContracts.map(({ group, items }) =>
+                group ? (
+                  <optgroup key={group} label={group.toUpperCase()}>
+                    {items.map((c) => (
+                      <option key={c.path} value={c.path}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  items.map((c) => (
+                    <option key={c.path || "__root__"} value={c.path}>
+                      {c.name || "(workspace root)"}
+                    </option>
+                  ))
+                )
+              )}
+            </select>
+          )}
+
+          {selectedContract && (
+            <div className="deploy-hint deploy-hint-mono">
+              {selectedContract.path
+                ? `--manifest-path ${selectedContract.path}/Cargo.toml`
+                : "Cargo.toml (workspace root)"}
+            </div>
+          )}
+        </div>
+
+        <button
+          className="deploy-btn deploy-btn-primary"
+          onClick={handleCompile}
+          disabled={compileStatus === "running" || !selectedContract}
+        >
           {compileStatus === "running" ? <Loader size={14} className="spin" /> : <Hammer size={14} />}
           {compileStatus === "running" ? "Compiling..." : "Build Contract"}
         </button>
@@ -407,9 +531,20 @@ const DeployPanel = ({ treeData, fileContents }) => {
 
       {/* ── Deploy ── */}
       <Section icon={<Rocket size={14} />} title="Deploy Contract" badge={<StatusBadge status={deployStatus} />}>
+        {selectedContract && (
+          <div className="deploy-target-banner">
+            <Folder size={11} />
+            <span>Deploying: <strong>{selectedContract.name}</strong></span>
+          </div>
+        )}
         <div className="deploy-form-group">
           <label className="deploy-label">Contract Alias</label>
-          <input className="deploy-input" value={alias} onChange={e => { aliasEditedRef.current = true; setAlias(e.target.value); }} placeholder="my-contract" />
+          <input
+            className="deploy-input"
+            value={alias}
+            onChange={e => { aliasEditedRef.current = true; setAlias(e.target.value); }}
+            placeholder="my-contract"
+          />
         </div>
 
         <div className="deploy-form-group">

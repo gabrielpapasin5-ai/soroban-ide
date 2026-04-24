@@ -8,22 +8,30 @@ const load = () => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
 };
 
+// Transient statuses like "running" must never be restored on reload —
+// the backend job that flipped the status to "running" is long gone once
+// the page reloads, so we'd be stuck forever waiting for a completion event
+// that can't arrive.
+const sanitizeStatus = (s) => (s === "running" ? null : s || null);
+
 export const DeployProvider = ({ children }) => {
   const saved = load();
 
   const [defaultWallet, setDefaultWallet] = useState(null);
   const [walletLoading, setWalletLoading] = useState(false);
-  const [compileStatus, setCompileStatus] = useState(saved.compileStatus || null);
-  const [deployStatus, setDeployStatus] = useState(saved.deployStatus || null);
+  const [compileStatus, setCompileStatus] = useState(sanitizeStatus(saved.compileStatus));
+  const [deployStatus, setDeployStatus] = useState(sanitizeStatus(saved.deployStatus));
   const [deployedContractId, setDeployedContractId] = useState(saved.deployedContractId || null);
   const [contractFunctions, setContractFunctions] = useState(saved.contractFunctions || []);
   const [validationResult, setValidationResult] = useState(null);
 
-  // Persist whenever key state changes
+  // Persist whenever key state changes. We deliberately write "null" in
+  // place of "running" so that an interrupted build (runner restart, tab
+  // close, etc.) doesn't leave the panel wedged in the RUNNING badge.
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      compileStatus,
-      deployStatus,
+      compileStatus: compileStatus === "running" ? null : compileStatus,
+      deployStatus: deployStatus === "running" ? null : deployStatus,
       deployedContractId,
       contractFunctions,
     }));
