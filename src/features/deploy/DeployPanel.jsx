@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Wallet, Hammer, Rocket, CheckCircle, AlertCircle, Loader, Copy, Check, Play, ChevronDown, ChevronRight, Folder, RefreshCw } from "lucide-react";
+import { Wallet, Hammer, Rocket, CheckCircle, AlertCircle, Loader, Copy, Check, Play, ChevronDown, ChevronRight, Folder, RefreshCw, ExternalLink, Trash2, ArrowUpCircle } from "lucide-react";
 import { useDeploy } from "../../context/DeployContext";
 import { useContract } from "../../context/ContractContext";
 import {
@@ -18,8 +18,18 @@ import {
   resolveWasmPath,
   manifestPathFlag,
 } from "./contractDiscovery";
+import {
+  listGroups,
+  formatRelativeTime,
+  explorerUrl,
+  shortId,
+} from "./deploymentHistory";
 
 const CONTRACT_STORAGE_KEY = "soroban:selectedContract";
+// Currently all deploys go to testnet (see the `--network testnet` flag
+// below). The history data model carries `network` per-record so the UI
+// can distinguish once multi-network deploys are enabled.
+const DEFAULT_NETWORK = "testnet";
 
 // Dispatch a command to the Terminal panel
 const runInTerminal = (cmd, files, onDone, onContractId) => {
@@ -39,7 +49,7 @@ const StatusBadge = ({ status }) => {
   return <span className={`deploy-badge ${s.cls}`}>{s.icon}{s.label}</span>;
 };
 
-const Section = ({ icon, title, children, defaultOpen = false, badge }) => {
+const Section = ({ icon, title, children, defaultOpen = true, badge }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="deploy-section">
@@ -48,9 +58,7 @@ const Section = ({ icon, title, children, defaultOpen = false, badge }) => {
         {badge && <span style={{ marginLeft: 8 }}>{badge}</span>}
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
-      <div className={`deploy-section-content ${open ? "open" : ""}`}>
-        <div className="deploy-section-body">{children}</div>
-      </div>
+      {open && <div className="deploy-section-body">{children}</div>}
     </div>
   );
 };
@@ -60,8 +68,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
     defaultWallet, setDefaultWallet, walletLoading, setWalletLoading,
     compileStatus, setCompileStatus,
     deployStatus, setDeployStatus,
-    deployedContractId, setDeployedContractId,
-    contractFunctions, setContractFunctions,
+    deploymentHistory, addDeployment, removeDeployment, clearGroup, clearAllHistory, promoteToActive,
   } = useDeploy();
   const { walletAddress, walletNetwork, connectWallet, disconnectWallet, error: walletConnectError } = useContract();
 
@@ -69,11 +76,22 @@ const DeployPanel = ({ treeData, fileContents }) => {
   const [freighterBalance, setFreighterBalance] = useState(null);
   const [alias, setAlias] = useState("my-contract");
   const [sourceAccount, setSourceAccount] = useState("default");
-  const [copied, setCopied] = useState(false);
-  const [invokeResults, setInvokeResults] = useState({});
-  const [fnArgs, setFnArgs] = useState({});
-  const [invokingFn, setInvokingFn] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+  // Invoke state is scoped by contract ID so each deployed contract has
+  // its own independent test surface — essential once multiple contracts
+  // show up in the Deployed Contracts list at the same time.
+  const [invokeResults, setInvokeResults] = useState({}); // { [contractId]: { [fnName]: result } }
+  const [invokingFn, setInvokingFn] = useState({});       // { [contractId]: fnName | null }
+  const [fnArgs, setFnArgs] = useState({});               // { [contractId]: { [fnName]: { [paramName]: value } } }
+  const [expandedTest, setExpandedTest] = useState(() => new Set()); // Set<contractId>
   const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  // Force a re-render every 30s so relative timestamps stay fresh without
+  // a per-row clock component. Cheap and good enough.
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setClockTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   // ─── Contract selector ───────────────────────────────────────────────────
   // Scan the file tree for every folder that owns a Cargo.toml. The user
@@ -152,6 +170,19 @@ const DeployPanel = ({ treeData, fileContents }) => {
     setRescanNonce((n) => n + 1);
   }, []);
 
+  // ─── Derived deploy history ──────────────────────────────────────────────
+
+  const groups = useMemo(() => listGroups(deploymentHistory), [deploymentHistory]);
+
+  // Active deployment for the currently-selected contract (used by the
+  // "replace?" confirm dialog and the Deploy button's "redeploy" state).
+  const activeForSelected = useMemo(() => {
+    if (!selectedContract) return null;
+    const bucket = deploymentHistory?.[selectedContract.path];
+    if (!bucket || bucket.length === 0) return null;
+    return bucket.find((r) => r.status === "active") || bucket[0];
+  }, [deploymentHistory, selectedContract]);
+
   // ─── Wallet ───────────────────────────────────────────────────────────────
 
   const handleInitWallet = useCallback(async () => {
@@ -190,10 +221,6 @@ const DeployPanel = ({ treeData, fileContents }) => {
         onDone: async () => {
           setCompileStatus("success");
           cleanup();
-          try {
-            const result = await getContractInterface(files);
-            setContractFunctions(result.functions || []);
-          } catch (_) {}
         },
         onClose: () => {},
       });
@@ -209,12 +236,15 @@ const DeployPanel = ({ treeData, fileContents }) => {
 
   const handleDeploy = useCallback(async () => {
     if (compileStatus !== "success") return;
-    if (deployedContractId) {
+    // Only warn if the *currently selected* contract already has an active
+    // deployment. Deploying a different contract for the first time should
+    // be a no-prompt path — it just adds a new group to the history.
+    if (activeForSelected) {
       setShowReplaceDialog(true);
       return;
     }
     await executeDeploy();
-  }, [compileStatus, deployedContractId]);
+  }, [compileStatus, activeForSelected]);
 
   const executeDeploy = useCallback(async () => {
     if (!selectedContract) return;
@@ -236,7 +266,57 @@ const DeployPanel = ({ treeData, fileContents }) => {
     // Prefix alias with short session ID to avoid collisions between users on shared server key
     const sessionPrefix = getSessionId().slice(0, 8);
     const scopedAlias = `${sessionPrefix}-${alias}`;
-    const cmd = `stellar contract deploy --wasm ${wasmPath} --source ${sourceKey} --network testnet --alias ${scopedAlias} --salt ${salt}${buildOnly}`;
+    const cmd = `stellar contract deploy --wasm ${wasmPath} --source ${sourceKey} --network ${DEFAULT_NETWORK} --alias ${scopedAlias} --salt ${salt}${buildOnly}`;
+
+    // Snapshot metadata that will be attached to the history record once
+    // the contract ID arrives. Captured here so the async handlers below
+    // always see the values that were current when the user hit Deploy.
+    const deployMeta = {
+      path: selectedContract.path,
+      crateName: selectedContract.crateName || selectedContract.name,
+      alias,
+      scopedAlias,
+      network: DEFAULT_NETWORK,
+      wallet: useFreighter ? "freighter" : (defaultWallet?.name || "stellar-ide-default"),
+      walletAddress: useFreighter ? walletAddress : (defaultWallet?.address || null),
+    };
+
+    // Record a new deployment in the history. Fetches the contract
+    // interface so the invoke/test UI can render immediately without an
+    // extra click. Failures to fetch the interface are non-fatal — the
+    // record still lands with an empty function list.
+    const recordDeploy = async (contractId) => {
+      let functions = [];
+      try {
+        // Scope interface parsing to the just-deployed crate. Without this
+        // the backend aggregates every lib.rs in the workspace and the
+        // user ends up with invoke buttons for functions that don't exist
+        // on this contract (e.g. "unrecognized subcommand 'get_count'").
+        const result = await getContractInterface(files, deployMeta.path);
+        const raw = result?.functions || [];
+        // Defensive dedupe by name in case the backend ever returns dupes.
+        const seen = new Set();
+        functions = raw.filter((fn) => {
+          if (!fn?.name || seen.has(fn.name)) return false;
+          seen.add(fn.name);
+          return true;
+        });
+      } catch (_) { /* non-fatal */ }
+      addDeployment({
+        id: contractId,
+        ...deployMeta,
+        deployedAt: Date.now(),
+        functions,
+      });
+      // Auto-expand the newly-deployed contract's Test section so the user
+      // sees the invoke UI right away. This matches "I just deployed it,
+      // now let me test it" as a natural next step.
+      setExpandedTest((prev) => {
+        const next = new Set(prev);
+        next.add(contractId);
+        return next;
+      });
+    };
 
     try {
       const { sessionId, jobId } = await submitCommand(files, cmd);
@@ -271,16 +351,12 @@ const DeployPanel = ({ treeData, fileContents }) => {
                 detail: { type: "output", content: "✅ Transaction submitted via Freighter!" }
               }));
               if (result?.contractId) {
-                setDeployedContractId(result.contractId);
+                await recordDeploy(result.contractId);
                 window.dispatchEvent(new CustomEvent("soroban:terminalAppend", {
                   detail: { type: "output", content: `📋 Contract ID: ${result.contractId}` }
                 }));
               }
               setDeployStatus("success");
-              try {
-                const result2 = await getContractInterface(files);
-                setContractFunctions(result2.functions || []);
-              } catch (_) {}
             } catch (err) {
               window.dispatchEvent(new CustomEvent("soroban:terminalAppend", {
                 detail: { type: "error", content: `❌ Freighter sign failed: ${err.message}` }
@@ -289,12 +365,8 @@ const DeployPanel = ({ treeData, fileContents }) => {
             }
           } else {
             const match = fullLog.match(/C[A-Z2-7]{55}/);
-            if (match) setDeployedContractId(match[0]);
+            if (match) await recordDeploy(match[0]);
             setDeployStatus("success");
-            try {
-              const result = await getContractInterface(files);
-              setContractFunctions(result.functions || []);
-            } catch (_) {}
           }
           cleanup();
         },
@@ -306,14 +378,15 @@ const DeployPanel = ({ treeData, fileContents }) => {
         detail: { type: "error", content: err.message }
       }));
     }
-  }, [treeData, fileContents, alias, sourceAccount, walletAddress, defaultWallet, selectedContract]);
+  }, [treeData, fileContents, alias, sourceAccount, walletAddress, defaultWallet, selectedContract, addDeployment]);
 
-  // ─── Invoke → stream to Terminal ─────────────────────────────────────────
+  // ─── Invoke → stream to Terminal (scoped per contract) ───────────────────
 
-  const handleInvoke = useCallback(async (fn) => {
-    if (!deployedContractId) return;
-    setInvokingFn(fn.name);
-    const args = fnArgs[fn.name] || {};
+  const handleInvoke = useCallback(async (deployment, fn) => {
+    if (!deployment?.id) return;
+    const contractId = deployment.id;
+    setInvokingFn((prev) => ({ ...prev, [contractId]: fn.name }));
+    const args = (fnArgs[contractId]?.[fn.name]) || {};
     const params = fn.params || [];
     const argStr = params.map(p => {
       const val = args[p.name] ?? "";
@@ -321,8 +394,11 @@ const DeployPanel = ({ treeData, fileContents }) => {
       return `--${p.name} ${quoted}`;
     }).join(" ");
     const sendFlag = fn.category === "write" ? " --send=yes" : "";
-    const sourceKey = defaultWallet?.name || "stellar-ide-default";
-    const cmd = `stellar contract invoke --id ${deployedContractId} --source ${sourceKey} --network testnet${sendFlag} -- ${fn.name} ${argStr}`.trim();
+    const sourceKey = deployment.wallet && deployment.wallet !== "freighter"
+      ? deployment.wallet
+      : (defaultWallet?.name || "stellar-ide-default");
+    const network = deployment.network || DEFAULT_NETWORK;
+    const cmd = `stellar contract invoke --id ${contractId} --source ${sourceKey} --network ${network}${sendFlag} -- ${fn.name} ${argStr}`.trim();
     const files = collectProjectFiles(treeData, fileContents);
     try {
       const { sessionId, jobId } = await submitCommand(files, cmd);
@@ -337,42 +413,94 @@ const DeployPanel = ({ treeData, fileContents }) => {
             detail: { type: msg.type === "error" ? "error" : "output", content: msg.content }
           }));
         },
-        onError: () => { setInvokeResults(r => ({ ...r, [fn.name]: { error: "Failed" } })); setInvokingFn(null); cleanup?.(); },
+        onError: () => {
+          setInvokeResults((r) => ({
+            ...r,
+            [contractId]: { ...(r[contractId] || {}), [fn.name]: { error: "Failed" } },
+          }));
+          setInvokingFn((prev) => ({ ...prev, [contractId]: null }));
+          cleanup?.();
+        },
         onDone: () => {
           const failed = out.includes("error:") || out.includes("Command failed");
-          setInvokeResults(r => ({ ...r, [fn.name]: failed ? { error: out.trim() } : { output: out.trim() } }));
-          setInvokingFn(null);
+          setInvokeResults((r) => ({
+            ...r,
+            [contractId]: {
+              ...(r[contractId] || {}),
+              [fn.name]: failed ? { error: out.trim() } : { output: out.trim() },
+            },
+          }));
+          setInvokingFn((prev) => ({ ...prev, [contractId]: null }));
           cleanup();
         },
         onClose: () => {},
       });
     } catch (err) {
-      setInvokeResults(r => ({ ...r, [fn.name]: { error: err.message } }));
-      setInvokingFn(null);
+      setInvokeResults((r) => ({
+        ...r,
+        [contractId]: { ...(r[contractId] || {}), [fn.name]: { error: err.message } },
+      }));
+      setInvokingFn((prev) => ({ ...prev, [contractId]: null }));
     }
-  }, [deployedContractId, fnArgs, treeData, fileContents, defaultWallet]);
+  }, [fnArgs, treeData, fileContents, defaultWallet]);
 
-  const handleCopyId = () => {
-    if (deployedContractId) {
-      navigator.clipboard.writeText(deployedContractId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  const setFnArgForContract = useCallback((contractId, fnName, paramName, value) => {
+    setFnArgs((prev) => ({
+      ...prev,
+      [contractId]: {
+        ...(prev[contractId] || {}),
+        [fnName]: {
+          ...((prev[contractId] || {})[fnName] || {}),
+          [paramName]: value,
+        },
+      },
+    }));
+  }, []);
 
-  const readFns  = contractFunctions.filter(f => f.category === "read");
-  const writeFns = contractFunctions.filter(f => f.category === "write");
-  const otherFns = contractFunctions.filter(f => f.category === "unknown");
+  const toggleTestExpanded = useCallback((contractId) => {
+    setExpandedTest((prev) => {
+      const next = new Set(prev);
+      if (next.has(contractId)) next.delete(contractId);
+      else next.add(contractId);
+      return next;
+    });
+  }, []);
+
+  const handleCopyId = useCallback((id) => {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1800);
+  }, []);
+
+  const handleRemoveDeployment = useCallback((path, id) => {
+    removeDeployment(path, id);
+  }, [removeDeployment]);
+
+  const handleClearGroup = useCallback((path) => {
+    if (typeof window !== "undefined" && !window.confirm("Remove all deployments for this contract?")) return;
+    clearGroup(path);
+  }, [clearGroup]);
+
+  const handleClearAll = useCallback(() => {
+    if (typeof window !== "undefined" && !window.confirm("Clear the entire deploy history?")) return;
+    clearAllHistory();
+  }, [clearAllHistory]);
 
   return (
     <div className="deploy-panel">
       {showReplaceDialog && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,padding:"28px 28px 24px",maxWidth:400,width:"90%"}}>
-            <div style={{fontWeight:600,fontSize:15,color:"#fff",marginBottom:12,fontFamily:"monospace"}}>Replace Deployed Contract?</div>
+          <div style={{background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:10,padding:"28px 28px 24px",maxWidth:420,width:"90%"}}>
+            <div style={{fontWeight:600,fontSize:15,color:"#fff",marginBottom:12,fontFamily:"monospace"}}>Redeploy {selectedContract?.name}?</div>
             <div style={{color:"#999",fontSize:13,lineHeight:1.7,marginBottom:20,fontFamily:"monospace"}}>
-              This will deploy a new contract and replace:<br/>
-              <span style={{color:"#fff",fontSize:11,wordBreak:"break-all"}}>{deployedContractId}</span>
+              The current active deployment will move to the Previous list. The new one becomes active.
+              {activeForSelected?.id && (
+                <>
+                  <br/><br/>
+                  <span style={{color:"#fff",fontSize:11,wordBreak:"break-all"}}>{activeForSelected.id}</span>
+                </>
+              )}
             </div>
             <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
               <button onClick={() => setShowReplaceDialog(false)} style={{padding:"8px 18px",fontSize:13,borderRadius:6,border:"1px solid #333",background:"transparent",color:"#ccc",cursor:"pointer",fontFamily:"monospace"}}>Cancel</button>
@@ -569,61 +697,280 @@ const DeployPanel = ({ treeData, fileContents }) => {
           disabled={compileStatus !== "success" || deployStatus === "running"}
         >
           {deployStatus === "running" ? <Loader size={14} className="spin" /> : <Rocket size={14} />}
-          {deployStatus === "running" ? "Deploying..." : "Deploy"}
+          {deployStatus === "running"
+            ? "Deploying..."
+            : (activeForSelected ? "Redeploy" : "Deploy")}
         </button>
         {compileStatus !== "success" && <div className="deploy-hint">Build must succeed first.</div>}
       </Section>
 
-      {/* ── Deployed Contract ── */}
-      <Section icon={<CheckCircle size={14} />} title="Deployed Contract">
-        {deployedContractId ? (
-          <>
-            <div className="deploy-contract-id-row">
-              <span className="deploy-contract-id" title={deployedContractId}>
-                {deployedContractId.slice(0,8)}…{deployedContractId.slice(-8)}
-              </span>
-              <button className="deploy-icon-btn" onClick={handleCopyId} title={deployedContractId}>
-                {copied ? <Check size={12} /> : <Copy size={12} />}
-              </button>
-            </div>
-            {contractFunctions.length > 0 ? (
-              <div className="deploy-functions">
-                {readFns.length > 0 && (
-                  <div className="deploy-fn-group">
-                    <div className="deploy-fn-group-label read">Read-only</div>
-                    {readFns.map(fn => <FnCard key={fn.name} fn={fn} fnArgs={fnArgs} setFnArgs={setFnArgs} onInvoke={handleInvoke} invoking={invokingFn === fn.name} result={invokeResults[fn.name]} />)}
-                  </div>
-                )}
-                {writeFns.length > 0 && (
-                  <div className="deploy-fn-group">
-                    <div className="deploy-fn-group-label write">Write</div>
-                    {writeFns.map(fn => <FnCard key={fn.name} fn={fn} fnArgs={fnArgs} setFnArgs={setFnArgs} onInvoke={handleInvoke} invoking={invokingFn === fn.name} result={invokeResults[fn.name]} />)}
-                  </div>
-                )}
-                {otherFns.length > 0 && (
-                  <div className="deploy-fn-group">
-                    <div className="deploy-fn-group-label unknown">Functions</div>
-                    {otherFns.map(fn => <FnCard key={fn.name} fn={fn} fnArgs={fnArgs} setFnArgs={setFnArgs} onInvoke={handleInvoke} invoking={invokingFn === fn.name} result={invokeResults[fn.name]} />)}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="deploy-hint">Build the contract to load its interface.</div>
-            )}
-          </>
-        ) : (
+      {/* ── Deployed Contracts (grouped, multi-contract history) ── */}
+      <Section
+        icon={<CheckCircle size={14} />}
+        title={`Deployed Contracts${groups.length > 0 ? ` (${groups.length})` : ""}`}
+        defaultOpen={groups.length > 0}
+      >
+        {groups.length === 0 ? (
           <div className="deploy-hint">Deploy a contract to interact with it here.</div>
+        ) : (
+          <>
+            {groups.map((g) => (
+              <DeploymentGroup
+                key={g.path}
+                group={g}
+                contracts={contracts}
+                invokeResults={invokeResults}
+                invokingFn={invokingFn}
+                fnArgs={fnArgs}
+                expandedTest={expandedTest}
+                copiedId={copiedId}
+                onCopyId={handleCopyId}
+                onInvoke={handleInvoke}
+                onArgChange={setFnArgForContract}
+                onToggleTest={toggleTestExpanded}
+                onPromote={promoteToActive}
+                onRemove={handleRemoveDeployment}
+                onClearGroup={handleClearGroup}
+              />
+            ))}
+            <button className="deploy-history-clear" onClick={handleClearAll}>
+              <Trash2 size={11} /> Clear all history
+            </button>
+          </>
         )}
       </Section>
     </div>
   );
 };
 
-const FnCard = ({ fn, fnArgs, setFnArgs, onInvoke, invoking, result }) => {
-  const args = fnArgs[fn.name] || {};
-  const params = fn.params || [];
+// ─── Group: one contract folder + its deployment history ────────────────────
+const DeploymentGroup = ({
+  group, contracts, invokeResults, invokingFn, fnArgs, expandedTest, copiedId,
+  onCopyId, onInvoke, onArgChange, onToggleTest, onPromote, onRemove, onClearGroup,
+}) => {
+  const [open, setOpen] = useState(true);
+  const active = group.deployments.find((d) => d.status === "active") || group.deployments[0];
+  const previous = group.deployments.filter((d) => d.id !== active?.id);
+  // Prefer the live contract record's display name if the folder is still
+  // around; fall back to the recorded crate name or the path itself.
+  const live = contracts.find((c) => c.path === group.path);
+  const displayName = live?.name || active?.crateName || group.path || "(unknown)";
+  const orphaned = !live && group.path !== "__unknown__";
 
-  // Extract the actual result value — last non-empty line that isn't an info/error prefix
+  if (!active) return null;
+
+  return (
+    <div className="deploy-group">
+      <button className="deploy-group-header" onClick={() => setOpen((v) => !v)}>
+        <Folder size={12} />
+        <span className="deploy-group-name">{displayName}</span>
+        <span className="deploy-group-count">
+          {group.deployments.length} deploy{group.deployments.length === 1 ? "" : "s"}
+        </span>
+        {orphaned && <span className="deploy-group-orphan" title="Contract folder no longer in workspace">orphan</span>}
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+      </button>
+      {open && (
+        <div className="deploy-group-body">
+          <ActiveDeployment
+            deployment={active}
+            copiedId={copiedId}
+            onCopyId={onCopyId}
+            invokeResults={invokeResults}
+            invokingFn={invokingFn}
+            fnArgs={fnArgs}
+            expanded={expandedTest.has(active.id)}
+            onToggleTest={onToggleTest}
+            onInvoke={onInvoke}
+            onArgChange={onArgChange}
+            onRemove={onRemove}
+          />
+          {previous.length > 0 && (
+            <div className="deploy-previous-list">
+              <div className="deploy-previous-label">Previous ({previous.length})</div>
+              {previous.map((d) => (
+                <PreviousRow
+                  key={d.id}
+                  deployment={d}
+                  copiedId={copiedId}
+                  onCopyId={onCopyId}
+                  onPromote={onPromote}
+                  onRemove={onRemove}
+                />
+              ))}
+            </div>
+          )}
+          <button className="deploy-group-clear" onClick={() => onClearGroup(group.path)}>
+            <Trash2 size={10} /> Clear this contract's history
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Active deployment card (the headline entry for a group) ───────────────
+const ActiveDeployment = ({
+  deployment, copiedId, onCopyId, invokeResults, invokingFn, fnArgs, expanded,
+  onToggleTest, onInvoke, onArgChange, onRemove,
+}) => {
+  const fns = deployment.functions || [];
+  const readFns  = fns.filter((f) => f.category === "read");
+  const writeFns = fns.filter((f) => f.category === "write");
+  const otherFns = fns.filter((f) => f.category === "unknown");
+  const netClass = `deploy-network-badge net-${(deployment.network || "testnet").toLowerCase()}`;
+
+  return (
+    <div className="deploy-active-card">
+      <div className="deploy-active-meta">
+        <span className="deploy-active-flag">ACTIVE</span>
+        <span className={netClass}>{deployment.network || "testnet"}</span>
+        <span className="deploy-relative-time" title={new Date(deployment.deployedAt).toLocaleString()}>
+          {formatRelativeTime(deployment.deployedAt)}
+        </span>
+      </div>
+      {deployment.alias && (
+        <div className="deploy-active-alias">{deployment.alias}</div>
+      )}
+      <div className="deploy-contract-id-row">
+        <span className="deploy-contract-id" title={deployment.id}>
+          {shortId(deployment.id)}
+        </span>
+        <button className="deploy-icon-btn" onClick={() => onCopyId(deployment.id)} title={deployment.id}>
+          {copiedId === deployment.id ? <Check size={12} /> : <Copy size={12} />}
+        </button>
+      </div>
+      <div className="deploy-active-actions">
+        <a
+          className="deploy-btn deploy-btn-secondary deploy-btn-small"
+          href={explorerUrl(deployment.id, deployment.network)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ExternalLink size={11} /> Explorer
+        </a>
+        <button
+          className="deploy-btn deploy-btn-secondary deploy-btn-small"
+          onClick={() => onToggleTest(deployment.id)}
+          disabled={fns.length === 0}
+          title={fns.length === 0 ? "No interface loaded — redeploy to fetch" : undefined}
+        >
+          <Play size={11} /> {expanded ? "Hide test" : "Test"}
+        </button>
+        <button
+          className="deploy-btn-icon-danger"
+          onClick={() => onRemove(deployment.path, deployment.id)}
+          title="Remove from history"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+      {expanded && fns.length > 0 && (
+        <div className="deploy-functions">
+          {readFns.length > 0 && (
+            <div className="deploy-fn-group">
+              <div className="deploy-fn-group-label read">Read-only</div>
+              {readFns.map((fn) => (
+                <FnCard
+                  key={fn.name}
+                  fn={fn}
+                  deployment={deployment}
+                  args={fnArgs[deployment.id]?.[fn.name] || {}}
+                  invoking={invokingFn[deployment.id] === fn.name}
+                  result={invokeResults[deployment.id]?.[fn.name]}
+                  onInvoke={onInvoke}
+                  onArgChange={onArgChange}
+                />
+              ))}
+            </div>
+          )}
+          {writeFns.length > 0 && (
+            <div className="deploy-fn-group">
+              <div className="deploy-fn-group-label write">Write</div>
+              {writeFns.map((fn) => (
+                <FnCard
+                  key={fn.name}
+                  fn={fn}
+                  deployment={deployment}
+                  args={fnArgs[deployment.id]?.[fn.name] || {}}
+                  invoking={invokingFn[deployment.id] === fn.name}
+                  result={invokeResults[deployment.id]?.[fn.name]}
+                  onInvoke={onInvoke}
+                  onArgChange={onArgChange}
+                />
+              ))}
+            </div>
+          )}
+          {otherFns.length > 0 && (
+            <div className="deploy-fn-group">
+              <div className="deploy-fn-group-label unknown">Functions</div>
+              {otherFns.map((fn) => (
+                <FnCard
+                  key={fn.name}
+                  fn={fn}
+                  deployment={deployment}
+                  args={fnArgs[deployment.id]?.[fn.name] || {}}
+                  invoking={invokingFn[deployment.id] === fn.name}
+                  result={invokeResults[deployment.id]?.[fn.name]}
+                  onInvoke={onInvoke}
+                  onArgChange={onArgChange}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Previous deployment row (compact) ──────────────────────────────────────
+const PreviousRow = ({ deployment, copiedId, onCopyId, onPromote, onRemove }) => {
+  return (
+    <div className="deploy-previous-row">
+      <span className="deploy-previous-id" title={deployment.id}>{shortId(deployment.id)}</span>
+      <span className="deploy-previous-time" title={new Date(deployment.deployedAt).toLocaleString()}>
+        {formatRelativeTime(deployment.deployedAt)}
+      </span>
+      <div className="deploy-previous-actions">
+        <button
+          className="deploy-icon-btn"
+          onClick={() => onCopyId(deployment.id)}
+          title="Copy contract ID"
+        >
+          {copiedId === deployment.id ? <Check size={11} /> : <Copy size={11} />}
+        </button>
+        <a
+          className="deploy-icon-btn"
+          href={explorerUrl(deployment.id, deployment.network)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open in explorer"
+        >
+          <ExternalLink size={11} />
+        </a>
+        <button
+          className="deploy-icon-btn"
+          onClick={() => onPromote(deployment.path, deployment.id)}
+          title="Make this the active deployment"
+        >
+          <ArrowUpCircle size={11} />
+        </button>
+        <button
+          className="deploy-icon-btn deploy-icon-btn-danger"
+          onClick={() => onRemove(deployment.path, deployment.id)}
+          title="Remove from history"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Single function invoke card ────────────────────────────────────────────
+const FnCard = ({ fn, deployment, args, invoking, result, onInvoke, onArgChange }) => {
+  const params = fn.params || [];
   const resultValue = result?.output
     ? result.output.split("\n").filter(l => l.trim() && !l.startsWith("ℹ") && !l.startsWith("❌") && !l.startsWith("✅")).pop()?.trim()
     : null;
@@ -631,18 +978,18 @@ const FnCard = ({ fn, fnArgs, setFnArgs, onInvoke, invoking, result }) => {
   return (
     <div className="deploy-fn-card">
       <div className="deploy-fn-name">fn {fn.name}()</div>
-      {params.map(p => (
+      {params.map((p) => (
         <div key={p.name} className="deploy-form-group">
           <label className="deploy-label">{p.name}: <span className="deploy-type">{p.type}</span></label>
           <input
             className="deploy-input"
             placeholder={p.type}
             value={args[p.name] || ""}
-            onChange={e => setFnArgs(prev => ({ ...prev, [fn.name]: { ...prev[fn.name], [p.name]: e.target.value } }))}
+            onChange={(e) => onArgChange(deployment.id, fn.name, p.name, e.target.value)}
           />
         </div>
       ))}
-      <button className="deploy-btn deploy-btn-invoke" onClick={() => onInvoke(fn)} disabled={invoking}>
+      <button className="deploy-btn deploy-btn-invoke" onClick={() => onInvoke(deployment, fn)} disabled={invoking}>
         {invoking ? <Loader size={11} className="spin" /> : <Play size={11} />}
         {invoking ? "Calling…" : "Call"}
       </button>

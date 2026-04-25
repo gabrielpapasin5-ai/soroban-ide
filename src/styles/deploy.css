@@ -604,5 +604,225 @@
   margin-left: 2px;
 }
 
+/* ── Deployment history (multi-contract) ──────────────────────────────── */
+
+/* Group = one contract folder's entire deploy history */
+.deploy-group {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.015);
+}
+.deploy-group + .deploy-group { margin-top: 10px; }
+
+.deploy-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  color: var(--text-primary) !important;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.deploy-group-header:hover { background: rgba(255, 255, 255, 0.06); }
+.deploy-group-header > svg:last-child {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.deploy-group-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.deploy-group-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 4px;
+}
+.deploy-group-orphan {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  padding: 1px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 4px;
+}
+
+.deploy-group-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Active deployment card — the headline entry for a group */
+.deploy-active-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  background: rgba(34, 197, 94, 0.04);
+  border-radius: 8px;
+}
+
+.deploy-active-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.deploy-active-flag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.12);
+  padding: 2px 7px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+
+.deploy-network-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.deploy-network-badge.net-testnet   { background: rgba(34, 197, 94, 0.12);  color: #22c55e; }
+.deploy-network-badge.net-futurenet { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+.deploy-network-badge.net-mainnet,
+.deploy-network-badge.net-public    { background: rgba(239, 68, 68, 0.15);  color: #ef4444; }
+
+.deploy-relative-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.deploy-active-alias {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deploy-active-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.deploy-btn-small {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 11px;
+  gap: 4px;
+  text-decoration: none;
+}
+/* anchor tag gets the deploy-btn class but needs its underline stripped */
+a.deploy-btn { text-decoration: none; }
+
+.deploy-btn-icon-danger {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.deploy-btn-icon-danger:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* Previous deployments list */
+.deploy-previous-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 8px;
+}
+.deploy-previous-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.deploy-previous-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+}
+.deploy-previous-row:hover { background: rgba(255, 255, 255, 0.04); }
+.deploy-previous-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+  letter-spacing: 0.02em;
+}
+.deploy-previous-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.deploy-previous-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.deploy-icon-btn-danger:hover { color: #ef4444 !important; }
+
+/* Clear buttons (per-group and global) */
+.deploy-group-clear,
+.deploy-history-clear {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: color 0.15s, border-color 0.15s;
+}
+.deploy-group-clear:hover,
+.deploy-history-clear:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.deploy-history-clear { margin-top: 8px; }
+
 /* ── Spinner ── */
 .spin { animation: spin 1s linear infinite; }

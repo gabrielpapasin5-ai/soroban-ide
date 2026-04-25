@@ -1,4 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import {
+  loadHistory,
+  saveHistory,
+  addDeployment as addDeploymentPure,
+  removeDeployment as removeDeploymentPure,
+  clearGroup as clearGroupPure,
+  promoteToActive as promoteToActivePure,
+} from "../features/deploy/deploymentHistory";
 
 const DeployContext = createContext(null);
 
@@ -21,27 +29,51 @@ export const DeployProvider = ({ children }) => {
   const [walletLoading, setWalletLoading] = useState(false);
   const [compileStatus, setCompileStatus] = useState(sanitizeStatus(saved.compileStatus));
   const [deployStatus, setDeployStatus] = useState(sanitizeStatus(saved.deployStatus));
-  const [deployedContractId, setDeployedContractId] = useState(saved.deployedContractId || null);
-  const [contractFunctions, setContractFunctions] = useState(saved.contractFunctions || []);
   const [validationResult, setValidationResult] = useState(null);
 
-  // Persist whenever key state changes. We deliberately write "null" in
-  // place of "running" so that an interrupted build (runner restart, tab
-  // close, etc.) doesn't leave the panel wedged in the RUNNING badge.
+  // Multi-contract deployment history. Shape: { [contractPath]: DeploymentRecord[] }
+  // Persisted under its own localStorage key (deploymentHistory.js owns it)
+  // so we can evolve the schema independently of the rest of deploy state.
+  const [deploymentHistory, setDeploymentHistory] = useState(() => loadHistory());
+
+  // Persist compile/deploy status whenever it changes. Deliberately writes
+  // null in place of "running" so an interrupted build (runner restart, tab
+  // close) doesn't leave the panel wedged in the RUNNING badge forever.
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       compileStatus: compileStatus === "running" ? null : compileStatus,
       deployStatus: deployStatus === "running" ? null : deployStatus,
-      deployedContractId,
-      contractFunctions,
     }));
-  }, [compileStatus, deployStatus, deployedContractId, contractFunctions]);
+  }, [compileStatus, deployStatus]);
+
+  // Persist history separately from the transient build status.
+  useEffect(() => {
+    saveHistory(deploymentHistory);
+  }, [deploymentHistory]);
+
+  const addDeployment = useCallback((record) => {
+    setDeploymentHistory((h) => addDeploymentPure(h, record));
+  }, []);
+
+  const removeDeployment = useCallback((path, id) => {
+    setDeploymentHistory((h) => removeDeploymentPure(h, path, id));
+  }, []);
+
+  const clearGroup = useCallback((path) => {
+    setDeploymentHistory((h) => clearGroupPure(h, path));
+  }, []);
+
+  const clearAllHistory = useCallback(() => {
+    setDeploymentHistory({});
+  }, []);
+
+  const promoteToActive = useCallback((path, id) => {
+    setDeploymentHistory((h) => promoteToActivePure(h, path, id));
+  }, []);
 
   const resetDeploy = useCallback(() => {
     setCompileStatus(null);
     setDeployStatus(null);
-    setDeployedContractId(null);
-    setContractFunctions([]);
   }, []);
 
   return (
@@ -49,9 +81,9 @@ export const DeployProvider = ({ children }) => {
       defaultWallet, setDefaultWallet, walletLoading, setWalletLoading,
       compileStatus, setCompileStatus,
       deployStatus, setDeployStatus,
-      deployedContractId, setDeployedContractId,
-      contractFunctions, setContractFunctions,
       validationResult, setValidationResult,
+      deploymentHistory,
+      addDeployment, removeDeployment, clearGroup, clearAllHistory, promoteToActive,
       resetDeploy,
     }}>
       {children}
