@@ -51,7 +51,14 @@ export const ContractProvider = ({ children }) => {
     try {
       setError(null);
       const { address, network, wrongNetwork, error: freighterError } = await connectFreighter();
-      if (freighterError) throw new Error(freighterError);
+      if (freighterError) {
+        // Freighter occasionally returns `{ code, message }` here, not a string.
+        // Without coercion this becomes "[object Object]" in the wallet card.
+        const msg =
+          typeof freighterError === "string" ? freighterError :
+          (freighterError?.message || JSON.stringify(freighterError));
+        throw new Error(msg);
+      }
       if (address) {
         setWalletAddress(address);
         setWalletNetwork(network || null);

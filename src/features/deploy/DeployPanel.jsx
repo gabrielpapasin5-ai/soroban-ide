@@ -26,6 +26,16 @@ import {
 } from "./deploymentHistory";
 
 const CONTRACT_STORAGE_KEY = "soroban:selectedContract";
+
+// Coerce arbitrary error values into a printable string. Catches the
+// `[object Object]` regression that appears when a thrown value isn't an
+// Error (e.g. Freighter returning a plain `{ code, message }` object).
+const errString = (e) => {
+  if (e == null) return "";
+  if (typeof e === "string") return e;
+  if (e?.message) return String(e.message);
+  try { return JSON.stringify(e); } catch { return String(e); }
+};
 // Currently all deploys go to testnet (see the `--network testnet` flag
 // below). The history data model carries `network` per-record so the UI
 // can distinguish once multi-network deploys are enabled.
@@ -360,8 +370,17 @@ const DeployPanel = ({ treeData, fileContents }) => {
               }
               setDeployStatus("success");
             } catch (err) {
+              // Use the stage tag set by signAndSubmitWithFreighter so the
+              // user sees what actually failed (sign popup vs RPC submit
+              // vs on-chain). The message itself already includes the
+              // decoded txResultCode where applicable.
+              const label =
+                err.stage === "submit"  ? "❌ Submit failed:"   :
+                err.stage === "onchain" ? "❌ On-chain failed:" :
+                err.stage === "sign"    ? "❌ Sign failed:"     :
+                                          "❌ Deploy failed:";
               window.dispatchEvent(new CustomEvent("soroban:terminalAppend", {
-                detail: { type: "error", content: `❌ Freighter sign failed: ${err.message}` }
+                detail: { type: "error", content: `${label} ${err.message}` }
               }));
               setDeployStatus("error");
             }
@@ -543,7 +562,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
               </button>
             </>
           )}
-          {walletError && <div className="deploy-error">{walletError}</div>}
+          {walletError && <div className="deploy-error">{errString(walletError)}</div>}
         </div>
 
         <div className="deploy-subsection">
@@ -571,7 +590,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
                   <span className="deploy-balance-unit">XLM</span>
                 </div>
               )}
-              {walletConnectError && <div className="deploy-error">{walletConnectError}</div>}
+              {walletConnectError && <div className="deploy-error">{errString(walletConnectError)}</div>}
             </div>
           ) : (
             <>
