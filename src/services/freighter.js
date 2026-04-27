@@ -132,6 +132,25 @@ async function rpc(method, params) {
   return d.result;
 }
 
+async function getAccountSequence(address) {
+  // Prefer Soroban RPC's account view to avoid Horizon lag causing stale
+  // sequence reads during quick sign+submit loops.
+  try {
+    const acc = await rpc("getAccount", { address });
+    const seq = acc?.seqNum ?? acc?.sequence;
+    if (seq != null) return BigInt(seq);
+  } catch {
+    // Fallback to Horizon below.
+  }
+
+  const accountResp = await fetch(`https://horizon-testnet.stellar.org/accounts/${address}`);
+  if (!accountResp.ok) {
+    throw new Error("Freighter account not found on testnet. Fund it first via Friendbot.");
+  }
+  const { sequence } = await accountResp.json();
+  return BigInt(sequence);
+}
+
 /**
  * Sign an already-assembled XDR (e.g. from `stellar contract deploy --build-only`)
  * with Freighter and submit it directly via Soroban RPC.
@@ -160,11 +179,7 @@ const _signAndSubmitOnce = async (assembledXdr, freighterAddress, allowRetry) =>
     throw new Error(`Simulation failed: ${typeof sim.error === "string" ? sim.error : JSON.stringify(sim.error)}`);
   }
 
-  const accountResp = await fetch(`https://horizon-testnet.stellar.org/accounts/${freighterAddress}`);
-  if (!accountResp.ok) {
-    throw new Error("Freighter account not found on testnet. Fund it first via Friendbot.");
-  }
-  const { sequence } = await accountResp.json();
+  const sequence = await getAccountSequence(freighterAddress);
 
   const env = StellarXdr.TransactionEnvelope.fromXDR(assembledXdr, "base64");
   const innerTx = env.v1().tx();
@@ -172,7 +187,7 @@ const _signAndSubmitOnce = async (assembledXdr, freighterAddress, allowRetry) =>
   innerTx.ext(new StellarXdr.TransactionExt(1, sorobanData));
   innerTx.fee(parseInt(sim.minResourceFee) + parseInt(innerTx.fee()));
   const seqBuf = new Uint8Array(8);
-  new DataView(seqBuf.buffer).setBigInt64(0, BigInt(sequence) + 1n);
+  new DataView(seqBuf.buffer).setBigInt64(0, sequence + 1n);
   innerTx.seqNum(StellarXdr.SequenceNumber.fromXDR(seqBuf));
   const zeroBuf = new Uint8Array(8);
   innerTx.cond(StellarXdr.Preconditions.precondTime(
@@ -204,6 +219,9 @@ const _signAndSubmitOnce = async (assembledXdr, freighterAddress, allowRetry) =>
     // sign popup is slow enough that another tx from this account can land
     // between fetch and submit.
     if (allowRetry && /txBadSeq/.test(decoded)) {
+      // Small pause gives RPC/Horizon state a chance to settle if another tx
+      // landed from the same account right before submit.
+      await new Promise((r) => setTimeout(r, 650));
       return await _signAndSubmitOnce(assembledXdr, freighterAddress, false);
     }
     const err = new Error(`Transaction rejected: ${decoded}`);
