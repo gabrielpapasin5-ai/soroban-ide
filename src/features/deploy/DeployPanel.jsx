@@ -26,6 +26,7 @@ import {
 } from "./deploymentHistory";
 
 const CONTRACT_STORAGE_KEY = "soroban:selectedContract";
+const DEPLOY_PRESETS_KEY = "soroban:deploy_presets";
 
 // Coerce arbitrary error values into a printable string. Catches the
 // `[object Object]` regression that appears when a thrown value isn't an
@@ -40,6 +41,28 @@ const errString = (e) => {
 // below). The history data model carries `network` per-record so the UI
 // can distinguish once multi-network deploys are enabled.
 const DEFAULT_NETWORK = "testnet";
+const DEFAULT_SALT_MODE = "random";
+
+const randomSaltHex = () => (
+  Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+);
+
+const loadDeployPresets = () => {
+  try {
+    const raw = localStorage.getItem(DEPLOY_PRESETS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveDeployPresets = (data) => {
+  try { localStorage.setItem(DEPLOY_PRESETS_KEY, JSON.stringify(data || {})); } catch {}
+};
 
 // Dispatch a command to the Terminal panel
 const runInTerminal = (cmd, files, onDone, onContractId) => {
@@ -88,6 +111,12 @@ const DeployPanel = ({ treeData, fileContents }) => {
   const [freighterBalance, setFreighterBalance] = useState(null);
   const [alias, setAlias] = useState("my-contract");
   const [sourceAccount, setSourceAccount] = useState("default");
+  const [deployNetwork, setDeployNetwork] = useState(DEFAULT_NETWORK);
+  const [saltMode, setSaltMode] = useState(DEFAULT_SALT_MODE); // random | manual
+  const [manualSalt, setManualSalt] = useState("");
+  const [presetName, setPresetName] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [presetsByPath, setPresetsByPath] = useState(() => loadDeployPresets());
   const [copiedId, setCopiedId] = useState(null);
   // Invoke state is scoped by contract ID so each deployed contract has
   // its own independent test surface — essential once multiple contracts
@@ -129,6 +158,12 @@ const DeployPanel = ({ treeData, fileContents }) => {
     return contracts.find((c) => c.path === selectedPath) || contracts[0];
   }, [contracts, selectedPath]);
 
+  const deployPresets = useMemo(() => {
+    if (!selectedContract?.path) return [];
+    return [...(presetsByPath[selectedContract.path] || [])]
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }, [presetsByPath, selectedContract]);
+
   // Persist the resolved selection so the fallback sticks across reloads.
   useEffect(() => {
     if (!selectedContract) {
@@ -140,6 +175,15 @@ const DeployPanel = ({ treeData, fileContents }) => {
     }
     try { localStorage.setItem(CONTRACT_STORAGE_KEY, selectedContract.path); } catch {}
   }, [selectedContract, selectedPath]);
+
+  useEffect(() => {
+    saveDeployPresets(presetsByPath);
+  }, [presetsByPath]);
+
+  useEffect(() => {
+    setSelectedPresetId("");
+    setPresetName("");
+  }, [selectedContract?.path]);
 
   useEffect(() => {
     getDefaultWalletStatus().then(setDefaultWallet).catch(() => {});
@@ -328,12 +372,18 @@ const DeployPanel = ({ treeData, fileContents }) => {
     // changes, which leads to source/sequence mismatches (txBadSeq).
     const sourceKey = useFreighter ? walletAddress : (defaultWallet?.name || "stellar-ide-default");
     const buildOnly = useFreighter ? " --build-only" : "";
-    // Random salt prevents contract ID collision on re-deploy
-    const salt = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, "0")).join("");
+    const salt = saltMode === "manual" ? manualSalt.trim().toLowerCase() : randomSaltHex();
+    if (!/^[0-9a-f]{64}$/.test(salt)) {
+      setDeployStatus("error");
+      window.dispatchEvent(new CustomEvent("soroban:terminalAppend", {
+        detail: { type: "error", content: "Invalid salt: provide exactly 64 hex chars (0-9, a-f)." }
+      }));
+      return;
+    }
     // Prefix alias with short session ID to avoid collisions between users on shared server key
     const sessionPrefix = getSessionId().slice(0, 8);
     const scopedAlias = `${sessionPrefix}-${alias}`;
-    const cmd = `stellar contract deploy --wasm ${wasmPath} --source ${sourceKey} --network ${DEFAULT_NETWORK} --alias ${scopedAlias} --salt ${salt}${buildOnly}`;
+    const cmd = `stellar contract deploy --wasm ${wasmPath} --source ${sourceKey} --network ${deployNetwork} --alias ${scopedAlias} --salt ${salt}${buildOnly}`;
 
     // Snapshot metadata that will be attached to the history record once
     // the contract ID arrives. Captured here so the async handlers below
@@ -343,7 +393,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
       crateName: selectedContract.crateName || selectedContract.name,
       alias,
       scopedAlias,
-      network: DEFAULT_NETWORK,
+      network: deployNetwork,
       wallet: useFreighter ? "freighter" : (defaultWallet?.name || "stellar-ide-default"),
       walletAddress: useFreighter ? walletAddress : (defaultWallet?.address || null),
     };
@@ -454,7 +504,7 @@ const DeployPanel = ({ treeData, fileContents }) => {
         detail: { type: "error", content: err.message }
       }));
     }
-  }, [treeData, fileContents, alias, sourceAccount, walletAddress, defaultWallet, selectedContract, addDeployment]);
+  }, [treeData, fileContents, alias, sourceAccount, walletAddress, defaultWallet, selectedContract, addDeployment, deployNetwork, saltMode, manualSalt]);
 
   // ─── Invoke → stream to Terminal (scoped per contract) ───────────────────
 
@@ -562,6 +612,58 @@ const DeployPanel = ({ treeData, fileContents }) => {
     if (typeof window !== "undefined" && !window.confirm("Clear the entire deploy history?")) return;
     clearAllHistory();
   }, [clearAllHistory]);
+
+  const handleSavePreset = useCallback(() => {
+    if (!selectedContract?.path) return;
+    const name = presetName.trim();
+    if (!name) return;
+    const nextPreset = {
+      id: selectedPresetId || `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      name,
+      alias: alias.trim(),
+      sourceAccount,
+      network: deployNetwork,
+      saltMode,
+      manualSalt: saltMode === "manual" ? manualSalt.trim().toLowerCase() : "",
+      updatedAt: Date.now(),
+    };
+    setPresetsByPath((prev) => {
+      const path = selectedContract.path;
+      const list = prev[path] || [];
+      const withoutSameId = list.filter((p) => p.id !== nextPreset.id);
+      return { ...prev, [path]: [nextPreset, ...withoutSameId].slice(0, 20) };
+    });
+    setSelectedPresetId(nextPreset.id);
+  }, [selectedContract, presetName, selectedPresetId, alias, sourceAccount, deployNetwork, saltMode, manualSalt]);
+
+  const handleLoadPreset = useCallback((id) => {
+    if (!selectedContract?.path) return;
+    const preset = (presetsByPath[selectedContract.path] || []).find((p) => p.id === id);
+    if (!preset) return;
+    setSelectedPresetId(preset.id);
+    setPresetName(preset.name || "");
+    setAlias(preset.alias || selectedContract.name || "my-contract");
+    aliasEditedRef.current = true;
+    setSourceAccount(preset.sourceAccount || "default");
+    setDeployNetwork(preset.network || DEFAULT_NETWORK);
+    const mode = preset.saltMode || DEFAULT_SALT_MODE;
+    setSaltMode(mode);
+    setManualSalt(mode === "manual" ? (preset.manualSalt || "") : "");
+  }, [selectedContract, presetsByPath]);
+
+  const handleDeletePreset = useCallback(() => {
+    if (!selectedContract?.path || !selectedPresetId) return;
+    setPresetsByPath((prev) => {
+      const path = selectedContract.path;
+      const list = (prev[path] || []).filter((p) => p.id !== selectedPresetId);
+      const next = { ...prev };
+      if (list.length === 0) delete next[path];
+      else next[path] = list;
+      return next;
+    });
+    setSelectedPresetId("");
+    setPresetName("");
+  }, [selectedContract, selectedPresetId]);
 
   const handleTogglePinned = useCallback((path, id) => {
     togglePinned(path, id);
@@ -769,6 +871,79 @@ const DeployPanel = ({ treeData, fileContents }) => {
               <option value="freighter">Freighter — {walletAddress.slice(0,6)}…{walletAddress.slice(-4)}</option>
             )}
           </select>
+        </div>
+
+        <div className="deploy-form-group">
+          <label className="deploy-label">Network</label>
+          <select
+            className="deploy-input"
+            value={deployNetwork}
+            onChange={(e) => setDeployNetwork(e.target.value)}
+          >
+            <option value="testnet">Testnet</option>
+            <option value="futurenet">Futurenet</option>
+            <option value="mainnet">Mainnet</option>
+          </select>
+        </div>
+
+        <div className="deploy-form-group">
+          <label className="deploy-label">Salt Mode</label>
+          <select
+            className="deploy-input"
+            value={saltMode}
+            onChange={(e) => setSaltMode(e.target.value)}
+          >
+            <option value="random">Random (recommended)</option>
+            <option value="manual">Manual (64-char hex)</option>
+          </select>
+          {saltMode === "manual" && (
+            <input
+              className="deploy-input"
+              value={manualSalt}
+              onChange={(e) => setManualSalt(e.target.value)}
+              placeholder="e.g. 64-char lowercase hex salt"
+            />
+          )}
+        </div>
+
+        <div className="deploy-form-group deploy-preset-box">
+          <label className="deploy-label">Deploy Presets (this contract)</label>
+          <div className="deploy-preset-row">
+            <select
+              className="deploy-input"
+              value={selectedPresetId}
+              onChange={(e) => handleLoadPreset(e.target.value)}
+            >
+              <option value="">Select preset...</option>
+              {deployPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <button
+              className="deploy-btn deploy-btn-secondary deploy-btn-small"
+              type="button"
+              disabled={!selectedPresetId}
+              onClick={handleDeletePreset}
+            >
+              Delete
+            </button>
+          </div>
+          <div className="deploy-preset-row">
+            <input
+              className="deploy-input"
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              placeholder="Preset name"
+            />
+            <button
+              className="deploy-btn deploy-btn-secondary deploy-btn-small"
+              type="button"
+              disabled={!presetName.trim()}
+              onClick={handleSavePreset}
+            >
+              Save Preset
+            </button>
+          </div>
         </div>
 
         <button

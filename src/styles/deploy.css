@@ -584,6 +584,18 @@
   opacity: 0.85;
 }
 
+.deploy-preset-box {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.deploy-preset-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
 .deploy-target-banner {
   display: inline-flex;
   align-items: center;
