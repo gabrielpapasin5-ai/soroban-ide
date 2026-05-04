@@ -1,212 +1,118 @@
-<div align="center">
+# Stellar Notes DApp
 
-<img src="public/assets/images/soroban.png" alt="Soroban Studio" width="120" />
+**Stellar Notes DApp** - Blockchain-Based Decentralized Note-Taking System
 
-# Soroban Studio
+## Project Description
 
-### The modern, browser-based IDE for Stellar Soroban smart contracts.
+Stellar Notes DApp is a decentralized smart contract solution built on the Stellar blockchain using Soroban SDK. It provides a secure, immutable platform for managing personal notes directly on the blockchain. The contract ensures that your data is stored transparently and is only manageable through predefined smart contract functions, eliminating reliance on centralized database providers.
 
-Build, test, and deploy Rust smart contracts on the Stellar network — without leaving your browser.
+The system allows users to create, view, and delete notes, leveraging the efficiency and security of the Stellar network. Each note is uniquely identified and stored within the contract's instance storage, ensuring data persistence and reliability.
 
-<br />
+## Project Vision
 
-<!-- Ecosystem badges -->
-<a href="https://stellar.org">
-  <img alt="Built for Stellar" src="https://img.shields.io/badge/Built%20for-Stellar-000000?style=for-the-badge&logo=stellar&logoColor=white" />
-</a>
-<a href="https://developers.stellar.org/docs/build/smart-contracts">
-  <img alt="Powered by Soroban" src="https://img.shields.io/badge/Powered%20by-Soroban-7D00FF?style=for-the-badge&logo=stellar&logoColor=white" />
-</a>
-<a href="https://www.rust-lang.org/">
-  <img alt="Rust" src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" />
-</a>
+Our vision is to revolutionize personal productivity in the digital age by:
 
-<br />
+- **Decentralizing Data**: Moving note-taking from centralized servers to a global, distributed blockchain
+- **Ensuring Ownership**: Empowering users to have complete control and ownership over their digital thoughts and information
+- **Guaranteeing Immutability**: Providing a permanent, tamper-proof record of notes that cannot be altered or deleted by third parties
+- **Enhancing Privacy**: Leveraging blockchain security to protect personal information from unauthorized access
+- **Building Trustless Systems**: Creating a platform where data integrity is guaranteed by code, not by company promises
 
-<!-- Tech badges -->
-<a href="https://react.dev/">
-  <img alt="React 18" src="https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white" />
-</a>
-<a href="https://vitejs.dev/">
-  <img alt="Vite 8" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" />
-</a>
-<a href="https://microsoft.github.io/monaco-editor/">
-  <img alt="Monaco Editor" src="https://img.shields.io/badge/Monaco-Editor-0078D4?logo=visualstudiocode&logoColor=white" />
-</a>
-<a href="https://nodejs.org/">
-  <img alt="Node 20.19+" src="https://img.shields.io/badge/node-%E2%89%A520.19-5FA04E?logo=nodedotjs&logoColor=white" />
-</a>
-<img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen" />
+We envision a future where digital information is truly personal and sovereign, empowering individuals with complete autonomy over their digital assets.
 
-<br /><br />
+## Key Features
 
-<p>
-  <a href="#features">Features</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#environment-variables">Environment</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#contributing">Contributing</a>
-</p>
+### 1. **Simple Note Creation**
 
-</div>
+- Create notes with just one function call
+- Specify title and content for each note
+- Automated ID generation for unique identification
+- Persistent storage on the Stellar blockchain
 
----
+### 2. **Efficient Data Retrieval**
 
-## About
+- Fetch all stored notes in a single call
+- Structured data representation for easy frontend integration
+- Quick access to your entire note collection
+- Real-time synchronization with the blockchain state
 
-**Soroban Studio** is an open-source, VS Code–style IDE designed specifically for developers building on [Stellar](https://stellar.org) with [Soroban](https://developers.stellar.org/docs/build/smart-contracts). It provides a polished in-browser development environment — Monaco editor, project templates, an integrated terminal wired to a Go build service, GitHub clone, [Freighter](https://www.freighter.app/) wallet integration, and a command palette — so you can go from zero to a deployed contract without context-switching between tools.
+### 3. **Secure Deletion**
 
-> **Repository:** [`zinct/soroban-ide`](https://github.com/zinct/soroban-ide)
+- Remove specific notes using their unique IDs
+- Permanent removal from the contract storage
+- Clean and efficient storage management
+- Immediate update of the note list after deletion
 
----
+### 4. **Transparency and Security**
 
-## Features
+- View all note activities on the blockchain
+- Blockchain-based verification of all storage actions
+- Immutable records of note creation and deletion
+- Protected against unauthorized modifications
 
-- **Monaco code editor** with Rust, TOML, JSON, and Markdown syntax highlighting.
-- **File explorer** with drag-and-drop, rename, copy/cut/paste, and context menus.
-- **Tabs** with VS Code–style preview behavior (single-click preview, edit to pin).
-- **Integrated terminal** that streams `stellar` CLI output from the backend over WebSocket, plus local commands (`ls`, `cd`, `clear`, …).
-- **One-click project templates** — `hello-world` contract and the `stellar-workshop` starter.
-- **GitHub integration** — OAuth sign-in and clone of public repositories into the workspace.
-- **Contract Selector in Deploy panel** — auto-discovers `Cargo.toml` projects, persists selection, and scopes build/deploy to the selected contract.
-- **Deploy timeline (multi-contract history)** — grouped deploy history with timestamps, active/previous states, inline Explorer links, and one-click re-activate.
-- **Deploy timeline controls** — search by alias/ID/path, filter by wallet/network/contract, pin favorites, and compare deployment diffs (metadata + function set).
-- **Inline contract testing from deploy history** — invoke read/write functions directly from each deployed contract card.
-- **Freighter wallet integration** — connect, deploy with Freighter signing flow, and interact with deployed contracts.
-- **Improved Freighter diagnostics** — clearer sign/submit/on-chain error stages with decoded transaction result codes.
-- **Command Palette & Quick Open** — `Cmd/Ctrl+Shift+P` and `Cmd/Ctrl+P`.
-- **Built-in tutorials** to guide new Soroban developers end-to-end.
-- **Themes** — Community Dark and Modern Light.
-- **Zero-config static deploy** — thanks to hash routing, deploys cleanly on Vercel, Netlify, Cloudflare Pages, or any static host.
+### 5. **Stellar Network Integration**
 
----
+- Leverages the high speed and low cost of Stellar
+- Built using the modern Soroban Smart Contract SDK
+- Scalable architecture for growing note collections
+- Interoperable with other Stellar-based services
 
-## Tech Stack
+## Contract Details
 
-| Layer       | Technology                                                            |
-| ----------- | --------------------------------------------------------------------- |
-| Framework   | [React 18](https://react.dev/) + [React Router](https://reactrouter.com/) (`createHashRouter`) |
-| Build tool  | [Vite 8](https://vitejs.dev/)                                         |
-| Editor      | [Monaco Editor](https://microsoft.github.io/monaco-editor/)           |
-| Icons       | [Lucide React](https://lucide.dev/)                                   |
-| Wallet      | [Freighter](https://www.freighter.app/)                               |
-| Backend     | Go service (separate repo) exposed at `/api` — WebSocket build streaming |
-| Contracts   | [Soroban SDK](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup) (Rust) |
-| Deploy UX   | Multi-contract deploy history, filters, pinning, diff modal, inline invoke |
+- Contract Address: CBLU4IUASQ4WUMOXBFLZRSBBLILGOH33GS4LUPKFBCCCMJCDQNMF7G2M
+  (Screenshot has been removed)
 
----
+## Future Scope
 
-## Requirements
+### Short-Term Enhancements
 
-- **Node.js** `>= 20.19` (enforced via `package.json` `engines`; required by Vite 8)
-- **npm** `>= 10`
-- *(Optional)* A running instance of the companion Go backend for `stellar build`, `stellar deploy`, and template fetching.
+1. **Note Encryption**: Support for end-to-end encryption of note content for enhanced privacy
+2. **Category Management**: Add tags and categories to organize notes efficiently
+3. **Rich Text Support**: Extend support beyond plain text to include Markdown and formatted content
+4. **Search Functionality**: Implement advanced search filters for large note collections
+
+### Medium-Term Development
+
+5. **Collaborative Notes**: Implement multi-signature requirements for shared or collaborative note-taking
+   - Shared access for multiple addresses
+   - Permission-based editing and viewing
+   - Version history tracking
+6. **Notification System**: Off-chain bridge to alert users of new updates or shared notes
+7. **Asset Attachment**: Capability to attach digital assets or tokens to specific notes
+8. **Inter-Contract Integration**: Allow other smart contracts to interact with and store data in the notes contract
+
+### Long-Term Vision
+
+9. **Cross-Chain Synchronization**: Extend note storage to multiple blockchain networks
+10. **Decentralized UI Hosting**: Host the frontend on IPFS or similar decentralized platforms
+11. **AI-Powered Summarization**: Optional integration with AI to help users summarize their notes
+12. **Privacy Layers**: Implement zero-knowledge proofs for completely private note content
+13. **DAO Governance**: Community-driven protocol improvements and feature prioritization
+14. **Identity Management**: Integration with decentralized identity (DID) systems for user management
+
+### Enterprise Features
+
+15. **Corporate Documentation**: Adapt the system for secure corporate record-keeping
+16. **Immutable Logging**: Create time-locked logs for audit purposes
+17. **Automated Reporting**: Automatic note triggers for periodic reporting
+18. **Multi-Language Support**: Expand accessibility with internationalization
 
 ---
 
-## Quick Start
+## Technical Requirements
 
-```bash
-git clone https://github.com/zinct/soroban-ide.git
-cd soroban-ide
-npm install
-cp .env.example .env     # fill in the values you need
-npm run dev              # http://localhost:3000
-```
+- Soroban SDK
+- Rust programming language
+- Stellar blockchain network
 
-Vite proxies `/api` → `http://localhost:8080` in dev (see `vite.config.js`), so a locally-running backend needs no CORS setup.
+## Getting Started
 
-### Scripts
+Deploy the smart contract to Stellar's Soroban network and interact with it using the three main functions:
 
-| Script            | Description                                       |
-| ----------------- | ------------------------------------------------- |
-| `npm run dev`     | Start the Vite dev server on port `3000`.         |
-| `npm run build`   | Produce a production build in `dist/`.            |
-| `npm run preview` | Serve the built `dist/` locally for a smoke test. |
+- `create_note()` - Create a new note with a title and content
+- `get_notes()` - Retrieve all stored notes from the contract
+- `delete_note()` - Remove a specific note by its ID
 
 ---
 
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in:
-
-| Variable                | Scope         | Description                                                                 |
-| ----------------------- | ------------- | --------------------------------------------------------------------------- |
-| `VITE_GITHUB_CLIENT_ID` | Client (Vite) | GitHub OAuth App client ID. Used by the GitHub panel for sign-in and clone. |
-| `VITE_API_BASE`         | Client (Vite) | Backend URL. Leave empty locally (defaults to `/api`, proxied by Vite). In production set to e.g. `https://api.soroban.studio`. |
-| `BACKEND_URL`           | Server-side   | Upstream backend URL for serverless proxies (optional).                     |
-
-> Only variables prefixed with `VITE_` are exposed to the browser bundle.
-
----
-
-## Keyboard Shortcuts
-
-| Action                  | macOS   | Windows / Linux    |
-| ----------------------- | ------- | ------------------ |
-| Command Palette         | `⌘⇧P`   | `Ctrl+Shift+P`     |
-| Quick Open (Go to File) | `⌘P`    | `Ctrl+P`           |
-| Save / promote preview  | `⌘S`    | `Ctrl+S`           |
-| Close active tab        | `⌘W`    | `Ctrl+W`           |
-| Toggle sidebar          | `⌘B`    | `Ctrl+B`           |
-| Toggle terminal         | `⌘J`    | `Ctrl+J`           |
-| Copy / Cut / Paste file | `⌘C/X/V` | `Ctrl+C/X/V`      |
-
----
-
-## Architecture
-
-```text
-soroban-ide/
-├── public/                 # Static assets (logos, icons, codicons)
-├── src/
-│   ├── app/                # Router (HashRouter)
-│   ├── components/         # Layout, shared UI, icons
-│   ├── context/            # Contract interaction context
-│   ├── features/
-│   │   ├── editor/         # Monaco wrapper + language utils
-│   │   ├── github/         # GitHub OAuth + clone panel
-│   │   ├── deploy/         # Build/deploy flow, contract discovery, deploy timeline
-│   │   ├── interact/       # Freighter-based contract interaction
-│   │   ├── palette/        # Command Palette + Quick Open
-│   │   ├── settings/       # Theme and editor settings
-│   │   ├── sidebar/        # File explorer, drag-and-drop, context menu
-│   │   ├── tabs/           # Tab bar with preview-tab behavior
-│   │   ├── terminal/       # Terminal UI + command routing
-│   │   ├── tutorial/       # Interactive tutorials
-│   │   └── workspace/      # Tree state, templates, hooks
-│   ├── services/           # Backend, GitHub, Freighter clients
-│   ├── styles/             # Per-feature CSS
-│   └── utils/              # Storage, file-type helpers
-├── vite.config.js
-└── package.json
-```
-
-The Go backend lives in a separate repository and is consumed by the client at `/api` (WebSocket streaming for builds, REST for file and template operations).
-
----
-
-## Contributing
-
-Contributions are very welcome — bug reports, feature requests, and pull requests all help make the tooling around Soroban better for everyone.
-
-Before opening a PR:
-
-1. Run a clean install: `rm -rf node_modules package-lock.json && npm install` (no `--legacy-peer-deps`).
-2. Verify the build: `npm run build`.
-3. Keep commits scoped and follow the existing convention (`feat:`, `fix:`, `style:`, `refactor:`, `chore:`, `docs:`).
-4. For UI changes, include a before/after screenshot in your PR description when practical.
-
----
-
-## Acknowledgements
-
-Built with love for the [Stellar](https://stellar.org) developer community, and standing on the shoulders of open-source giants:
-
-- [Stellar Development Foundation](https://stellar.org) — for Stellar and Soroban.
-- [Monaco Editor](https://microsoft.github.io/monaco-editor/) — the editor that powers VS Code.
-- [Vite](https://vitejs.dev/) · [React](https://react.dev/) · [Lucide](https://lucide.dev/) · [Freighter](https://www.freighter.app/).
-
-<div align="center">
-<sub>Made for the Stellar ecosystem · <a href="https://github.com/zinct/soroban-ide">zinct/soroban-ide</a></sub>
-</div>
+**Stellar Notes DApp** - Securing Your Thoughts on the Blockchain
